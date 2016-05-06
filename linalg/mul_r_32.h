@@ -1,6 +1,5 @@
 /***********************************************************************
- *
- * Copyright (C) 2008 Carsten Urbach
+ * Copyright (C) 2015 Florian Burger
  *
  * This file is part of tmLQCD.
  *
@@ -18,9 +17,13 @@
  * along with tmLQCD.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************/
 
-#ifndef _ONLINE_MEASUREMENT_H
-#define _ONLINE_MEASUREMENT_H
+#ifndef _MUL_R_32_H
+#define _MUL_R_32_H
 
-void online_measurement(const int traj, const int t0, const int ieo);
+#include "su3.h"
+
+/*   Makes (*R) = c*(*S)   c is a real constant*/
+void mul_r_32(spinor32 * const R, const float c, spinor32 * const S, const int N);
+void mul_r_32_orphaned(spinor32 * const R, const float c, spinor32 * const S, const int N);
 
 #endif

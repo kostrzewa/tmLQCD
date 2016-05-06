@@ -57,13 +57,14 @@ EQL {SPC}*={SPC}*
 #include"read_input.h"
 #include"default_input_values.h"
 #include"monomial/monomial.h"
-#include"measurements.h"
+#include"solver/solver_types.h"
+#include"meas/measurements.h"
 #include"integrator.h"
 #include"operator.h"
 #include"phmc.h"
 #include<io/params.h>
 
-inline void rmQuotes(char *str){
+static inline void rmQuotes(char *str){
   char* strsave=str;
 
   while(*str== ' ' || *str == '\t') str++;
@@ -166,6 +167,13 @@ inline void rmQuotes(char *str){
   int innersolver_precision_check_abs;
   int innersolver_precision_check_rel;
 
+  int max_mms_shifts;
+  int use_mixed_mms;
+  int min_innersolver_it;
+
+  double mixcg_innereps;
+  int mixcg_maxinnersolverit;
+
   int propagator_comparison;
   int nb_cores;
 
@@ -180,6 +188,8 @@ inline void rmQuotes(char *str){
   int dfl_poly_iter;
 
   int use_preconditioning;
+  
+  int use_qudainverter;
 
   int have_bsm_op;
 
@@ -260,6 +270,7 @@ inline void rmQuotes(char *str){
 %x PIONNORMMEAS
 %x PLOOP
 %x ORIENTEDPLAQUETTESMEAS
+%x GRADIENTFLOWMEAS
 
 %x REWEIGH
 %x REWSAMPLES
@@ -303,6 +314,7 @@ inline void rmQuotes(char *str){
 %x MNAME
 %x MCSTR
 %x MSOLVER
+%x NDMSOLVER
 %x GTYPE
 
 %x COMMENT
@@ -323,8 +335,11 @@ inline void rmQuotes(char *str){
 
 %x PRECONDITIONING
 
+%x QUDAINVERTER
+%x COMPRESSION
 
-
+%x MIXCGEPS
+%x MIXCGIT
 
 
 %%
@@ -398,6 +413,8 @@ inline void rmQuotes(char *str){
 ^NoSamples{EQL}                    BEGIN(NOSAMPLES);
 ^SplittedPropagator{EQL}           BEGIN(PROPSPLIT);
 ^UsePreconditioning{EQL}           BEGIN(PRECONDITIONING);
+^UseQudaInverter{EQL}              BEGIN(QUDAINVERTER);
+^UseCompression{EQL}               BEGIN(COMPRESSION);
 
 ^BeginMeasurement{SPC}+            BEGIN(INITMEASUREMENT);
 ^ComputeModeNumber{EQL}            BEGIN(COMPUTEMN);
@@ -423,6 +440,8 @@ inline void rmQuotes(char *str){
 
 ^BeginGPU                          BEGIN(INITGPU);
 
+^MixCGInnerEps{EQL}                BEGIN(MIXCGEPS);
+^MixCGMaxIter{EQL}                 BEGIN(MIXCGIT);
 
 
 
@@ -469,6 +488,25 @@ inline void rmQuotes(char *str){
       sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
       innersolver_precision_check_rel = a;
       if(myverbose) printf("  innersolver_precision_check_rel set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*MinInnerSolverIterations{EQL}{DIGIT}+ {
+      sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+      min_innersolver_it = a;
+      if(myverbose) printf("  min_innersolver_it set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*MaxMmsShifts{EQL}{DIGIT}+ {
+      sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+      max_mms_shifts = a;
+      if(myverbose) printf("  max_mms_shifts set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*UseMixedMms{EQL}yes {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    use_mixed_mms = 1;
+    if(myverbose) printf("  Using mixed solver for smallest shifts\n");  }
+  {SPC}*UseMixedMms{EQL}no {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    use_mixed_mms = 0;
+    if(myverbose) printf("  Not using mixed solver for smallest shifts\n");
   }
   EndGPUInit{SPC}* {
   if(myverbose) printf("GPU parsed in line %d\n\n", line_of_file);
@@ -575,6 +613,11 @@ inline void rmQuotes(char *str){
     optr->rel_prec = 0;
     if(myverbose) printf("  SolverRelativePrecision set to NO line %d operator %d\n",  line_of_file, current_operator);
   }
+  {SPC}*mcgdelta{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z1] = %lf", name, &c);
+    (optr->solver_params).mcg_delta = c;
+    if(myverbose) printf("  mcg_delta set to %lf line %d operator %d\n", c, line_of_file, current_operator);
+  }
   {SPC}*EigCGnrhs{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
     (optr->solver_params).eigcg_nrhs = a;
@@ -603,12 +646,12 @@ inline void rmQuotes(char *str){
   {SPC}*EigCGtolsq1{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z1] = %lf", name, &c);
     (optr->solver_params).eigcg_tolsq1 = c;
-    if(myverbose) printf("  EigCGtolsq1 set to %lf line %d operator %d\n", a, line_of_file, current_operator);
+    if(myverbose) printf("  EigCGtolsq1 set to %lf line %d operator %d\n", c, line_of_file, current_operator);
   }
   {SPC}*EigCGrestolsq{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     (optr->solver_params).eigcg_restolsq = c;
-    if(myverbose) printf("  EigCGrestolsq set to %lf line %d operator %d\n", a, line_of_file, current_operator);
+    if(myverbose) printf("  EigCGrestolsq set to %lf line %d operator %d\n", c, line_of_file, current_operator);
   }
   {SPC}*EigCGRandGuessOpt{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
@@ -782,6 +825,53 @@ inline void rmQuotes(char *str){
   }
 }
 
+<WILSONOP,TMOP,DBTMOP,CLOVEROP,DBCLOVEROP>{  
+  {SPC}*UseQudaInverter{EQL}yes {
+    if(myverbose) printf("  Use Quda inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->external_inverter = QUDA_INVERTER;
+  }
+  {SPC}*UseQudaInverter{EQL}no {
+    if(myverbose) printf("  Do not use Quda inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->external_inverter = NO_EXT_INV;
+  }
+  {SPC}*UseSloppyPrecision{EQL}yes {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}float {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}single {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}no {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_DOUBLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}double {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_DOUBLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}half {
+    if(myverbose) printf("  Use use sloppy precision (half) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_HALF;
+  }
+  {SPC}*UseCompression{EQL}12 {
+    if(myverbose) printf("  Use 12 compression in the inverter (if supported) line %d operator %d\n", line_of_file, current_operator);
+    optr->compression_type = COMPRESSION_12;
+  }
+  {SPC}*UseCompression{EQL}8 {
+    if(myverbose) printf("  Use 8 compression in the inverter (if supported) line %d operator %d\n", line_of_file, current_operator);
+    optr->compression_type = COMPRESSION_8;
+  }
+  {SPC}*UseCompression{EQL}18 {
+    if(myverbose) printf("  Not using compression in the inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->compression_type = NO_COMPRESSION;
+  }
+}
+
 <OVERLAPOP>{
   {SPC}*Solver{EQL} { 
    BEGIN(OVSOLVER); 
@@ -827,73 +917,78 @@ inline void rmQuotes(char *str){
     if(myverbose) printf("  Solver set to CG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
+  rgmixedcg {
+    optr->solver=RGMIXEDCG;
+    if(myverbose) printf("  Solver set to RGMixedCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
 }
 
 <TMSOLVER>{
   mixedcg {
-    optr->solver=13;
+    optr->solver=MIXEDCG;
     if(myverbose) printf("  Solver set to MixedCG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   bicgstab {
-    optr->solver=0;
+    optr->solver=BICGSTAB;
     if(myverbose) printf("  Solver set to BiCGstab line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   pcg {
-    optr->solver=9;
+    optr->solver=PCG;
     if(myverbose) printf("  Solver set to PCG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   gmres {
-    optr->solver=2;
+    optr->solver=GMRES;
     if(myverbose) printf("  Solver set to GMRES line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   gcr {
-    optr->solver=7;
+    optr->solver=GCR;
     if(myverbose) printf("  Solver set to GCR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   gmresdr {
-    optr->solver=8;
+    optr->solver=GMRESDR;
     if(myverbose) printf("  Solver set to GMRES-DR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   cgs {
-    optr->solver=3;
+    optr->solver=CGS;
     if(myverbose) printf("  Solver set to CGS line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   mr {
-    optr->solver=4;
+    optr->solver=MR;
     if(myverbose) printf("  Solver set to MR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   fgmres {
-    optr->solver=6;
+    optr->solver=FGMRES;
     if(myverbose) printf("  Solver set to FGMRES line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   dflgcr {
-    optr->solver=10;
+    optr->solver=DFLGCR;
     g_dflgcr_flag = 1;
     if(myverbose) printf("  Solver set to DFL-GCR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   dflfgmres {
-    optr->solver=11;
+    optr->solver=DFLFGMRES;
     g_dflgcr_flag = 1;
     if(myverbose) printf("  Solver set to DFL-FGMRES line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   cgmms {
-    optr->solver = 12;
+    optr->solver = CGMMS;
     if(myverbose) printf("  Solver set to CGMMS line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   increigcg {
-    optr->solver = 15;
+    optr->solver = INCREIGCG;
     if(myverbose) printf("  Solver set to INCR-EIG-CG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
@@ -903,27 +998,28 @@ inline void rmQuotes(char *str){
 
 <CSWSOLVER>{
   increigcg {
-    optr->solver = 15;
+    optr->solver = INCREIGCG;
     if(myverbose) printf("  Solver set to INCR-EIG-CG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
-
+  mixedcg {
+    optr->solver=MIXEDCG;
+    if(myverbose) printf("  Solver set to MixedCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
 }
-
-
-
 
 
 
 <OVSOLVER>{
   sumr {
-    optr->solver = 13;
-    if(myverbose) printf("  Solver set to SUMR line %d operator %d\n", line_of_file, current_operator);
+    optr->solver = SUMR;
+    if(myverbose) printf("  Solver set to SUMR in line %d operator %d\n", line_of_file, current_operator);
     BEGIN(OVERLAPOP);
   }
   cg {
-    optr->solver = 1;
-    if(myverbose) printf("  Solver set to SUMR line %d operator %d\n", line_of_file, current_operator);
+    optr->solver = CG;
+    if(myverbose) printf("  Solver set to CG in line %d operator %d\n", line_of_file, current_operator);
     BEGIN(OVERLAPOP);
   }
 }
@@ -1158,6 +1254,18 @@ inline void rmQuotes(char *str){
     mnl->maxiter = a;
     if(myverbose) printf("  MaxSolverIterations set to %d line %d monomial %d\n", a, line_of_file, current_monomial);
   }
+  {SPC}*mcgdelta{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z1] = %lf", name, &c);
+    (mnl->solver_params).mcg_delta = c;
+    if(myverbose) printf("  mcg_delta set to %lf line %d monomial %d\n", c, line_of_file, current_monomial);
+  }
+}
+
+<NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL>{
+  {SPC}*Solver{EQL} {
+   solver_caller=YY_START;
+   BEGIN(NDMSOLVER);
+  }
 }
 
 <DETMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL>{
@@ -1358,12 +1466,35 @@ inline void rmQuotes(char *str){
 <MSOLVER>{
   CG {
     if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
-    mnl->solver = 1;
+    mnl->solver = CG;
+    BEGIN(solver_caller);
+  }
+  mixedCG {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = MIXEDCG;
+    BEGIN(solver_caller);
+  }
+  rgmixedCG {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = RGMIXEDCG;
     BEGIN(solver_caller);
   }
   bicgstab {
     if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
-    mnl->solver = 0;
+    mnl->solver = BICGSTAB;
+    BEGIN(solver_caller);
+  }
+}
+
+<NDMSOLVER>{
+  cgmmsnd {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = CGMMSND;
+    BEGIN(solver_caller);
+  }
+  mixedCGmmsnd {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = MIXEDCGMMSND;
     BEGIN(solver_caller);
   }
 }
@@ -1543,6 +1674,10 @@ inline void rmQuotes(char *str){
     meas->type = ORIENTED_PLAQUETTES;
     strcpy(meas->name, "ORIENTEDPLAQUETTES");
   }
+  else if(strcmp(yytext, "GRADIENTFLOW")==0) {
+    meas->type = GRADIENT_FLOW;
+    strcpy(meas->name, "GRADIENTFLOW");
+  }
   else {
     fprintf(stderr, "Unknown measurement type %s in line %d\n", yytext, line_of_file);
     exit(1);
@@ -1563,9 +1698,10 @@ inline void rmQuotes(char *str){
   else if(meas->type == PIONNORM) BEGIN(PIONNORMMEAS);
   else if(meas->type == POLYAKOV) BEGIN(PLOOP);
   else if(meas->type == ORIENTED_PLAQUETTES) BEGIN(ORIENTEDPLAQUETTESMEAS);
+  else if(meas->type == GRADIENT_FLOW) BEGIN(GRADIENTFLOWMEAS);
 }
 
-<ONLINEMEAS,PIONNORMMEAS,PLOOP,ORIENTEDPLAQUETTESMEAS>{
+<ONLINEMEAS,PIONNORMMEAS,PLOOP,ORIENTEDPLAQUETTESMEAS,GRADIENTFLOWMEAS>{
   ^EndMeasurement{SPC}* {
     if(myverbose) printf("Measurement with id %d parsed in line %d\n\n", meas->id, line_of_file);
     BEGIN(0);
@@ -2099,6 +2235,16 @@ inline void rmQuotes(char *str){
   if(myverbose!=0) fprintf(stderr, "Number of reweighting samples set to %d\n", reweighting_samples);
 }
 
+<MIXCGIT>{DIGIT}+ {
+  mixcg_maxinnersolverit = atoi(yytext);
+  if(myverbose) printf("MixedCG: setting maximal inner solver iterations to %d\n", mixcg_maxinnersolverit);
+}
+
+<MIXCGEPS>{FLT}  {
+  mixcg_innereps=atof(yytext);
+  if(myverbose!=0) printf("MixedCG: setting inner solver eps to %s \n", yytext);
+}
+
 <*>^#   {
    comment_caller = YY_START;
    BEGIN(COMMENT);
@@ -2112,7 +2258,11 @@ inline void rmQuotes(char *str){
 }
 
 
+<<<<<<< HEAD
+<INITMONOMIAL,DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,NDPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLPOLYMONOMIAL,GAUGEMONOMIAL,INTEGRATOR,INITINTEGRATOR,INITMEASUREMENT,PIONNORMMEAS,ONLINEMEAS,ORIENTEDPLAQUETTESMEAS,GRADIENTFLOWMEAS,INITOPERATOR,TMOP,DBTMOP,OVERLAPOP,WILSONOP,CLOVEROP,DBCLOVEROP,POLYMONOMIAL,PLOOP,INITGPU,GPU,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL>{SPC}*\n   {
+=======
 <INITMONOMIAL,DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,NDPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLPOLYMONOMIAL,GAUGEMONOMIAL,INTEGRATOR,INITINTEGRATOR,INITMEASUREMENT,PIONNORMMEAS,ONLINEMEAS,ORIENTEDPLAQUETTESMEAS,INITOPERATOR,TMOP,DBTMOP,OVERLAPOP,WILSONOP,CLOVEROP,DBCLOVEROP,POLYMONOMIAL,PLOOP,INITGPU,GPU,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,BSMOP>{SPC}*\n   {
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   line_of_file++;
 }
 <*>{SPC}*\n                       {
@@ -2243,7 +2393,11 @@ int read_input(char * conf_file){
   g_sloppy_precision_flag = _default_g_sloppy_precision_flag;
   use_stout_flag = _default_use_stout_flag;
   use_preconditioning = _default_use_preconditioning;
+<<<<<<< HEAD
+  use_qudainverter = _default_use_qudainverter;
+=======
   have_bsm_op = 0;
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   stout_rho = _default_stout_rho;
   stout_no_iter = _default_stout_no_iter;
 
@@ -2267,6 +2421,15 @@ int read_input(char * conf_file){
   mstarsq = _default_mstarsq;
   no_sources_z2 = _default_no_sources_z2;
   device_num = _default_device_num;
+  min_innersolver_it = _default_min_innersolver_it;
+  max_mms_shifts = _default_max_mms_shifts;
+  use_mixed_mms = 0;
+  innersolver_precision_rel = 1.e-4;
+  innersolver_precision_abs = 1.e-4;
+
+  mixcg_innereps = _default_mixcg_innereps;
+  mixcg_maxinnersolverit = _default_mixcg_maxinnersolverit;
+
   /* Put -1 in PropInfo.format to see if parse_config() will
   change the value. If not then set it to source_format_flag */
   PropInfo.format = -1;

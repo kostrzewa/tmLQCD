@@ -51,7 +51,7 @@ typedef struct {
   int deg_poly;
   int no_ev;
   
-  int sloppy_precision;
+  SloppyPrecision sloppy_precision;
   int even_odd_flag;
   int solver;
   int N_s;
@@ -63,6 +63,8 @@ typedef struct {
   int no_flavours;
   int DownProp;
   int no_ev_index;
+  ExternalInverter external_inverter;
+  CompressionType compression_type;
 
   int error_code;
 
@@ -97,11 +99,14 @@ typedef struct {
   double extra_masses[MAX_EXTRA_MASSES];
   int no_extra_masses;
 
+<<<<<<< HEAD
+=======
   /* for the BSM operator, support for multiple scalar fields per sample/index */
   int npergauge;
   int n;
 
 
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   /* chebyshef coefficients for the overlap */
   double * coefs;
   /* various versions of the Dirac operator */
