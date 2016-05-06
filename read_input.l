@@ -115,15 +115,19 @@ static inline void rmQuotes(char *str){
   int write_cp_flag;
   int cp_interval;
   int nstore;
+  int nscalar;
   int index_start, index_end;
   int random_seed;
   int rlxd_level;
   char rlxd_input_filename[500];
   char gauge_input_filename[500];
+  char scalar_input_filename[500];
   int read_source_flag;
   int return_check_flag, return_check_interval;
   int gauge_precision_read_flag;
   int gauge_precision_write_flag;
+  int scalar_precision_read_flag;
+  int scalar_precision_write_flag;
   int g_disable_IO_checks;
   int gmres_m_parameter, gmresdr_nr_ev;
   int reproduce_randomnumber_flag;
@@ -187,6 +191,7 @@ static inline void rmQuotes(char *str){
   
   int use_qudainverter;
 
+  int have_bsm_op;
 
 %}
 
@@ -205,6 +210,7 @@ static inline void rmQuotes(char *str){
 %x NSAVE
 %x RLXDINPUTFILE
 %x GAUGEINPUTFILE
+%x SCALARINPUTFILE
 %x GAUGERPREC
 %x GAUGEWPREC
 %x DSBLIOCHECK
@@ -213,6 +219,7 @@ static inline void rmQuotes(char *str){
 %x WRITECP
 %x CPINT
 %x NSTORE
+%x NSCALAR
 %x TT
 %x LL
 %x LLX
@@ -281,10 +288,12 @@ static inline void rmQuotes(char *str){
 %x OVERLAPOP
 %x CLOVEROP
 %x DBCLOVEROP
+%x BSMOP
 %x TMSOLVER
 %x DBTMSOLVER
 %x CSWSOLVER
 %x OVSOLVER
+%x BSMSOLVER
 
 %x INITMONOMIAL
 %x DETMONOMIAL
@@ -356,13 +365,16 @@ static inline void rmQuotes(char *str){
 ^Measurements{EQL}                 BEGIN(NMEAS);
 ^NSave{EQL}                        BEGIN(NSAVE);
 ^GaugeFieldInFile{EQL}             BEGIN(GAUGEINPUTFILE);
+^ScalarFieldInFile{EQL}            BEGIN(SCALARINPUTFILE);
 ^RlxdStateInFile{EQL}              BEGIN(RLXDINPUTFILE);
 ^SubtractEVForCG{EQL}              BEGIN(SUBEVCG);
 ^WriteCheckpoints{EQL}             BEGIN(WRITECP);
 ^CheckpointInterval{EQL}           BEGIN(CPINT);
 ^GaugeConfigInputFile{EQL}         BEGIN(GAUGEINPUTFILE);
+^ScalarConfigInputFile{EQL}        BEGIN(SCALARINPUTFILE);
 ^RlxdInputFile{EQL}                BEGIN(RLXDINPUTFILE);
 ^InitialStoreCounter{EQL}          BEGIN(NSTORE);
+^InitialScalarCounter{EQL}         BEGIN(NSCALAR);
 ^StdIOProcessor{EQL}               BEGIN(IOPROC);
 ^Indices{EQL}                      BEGIN(IDX);
 ^BCAngleT{EQL}                     BEGIN(BOUNDT);
@@ -526,6 +538,18 @@ static inline void rmQuotes(char *str){
   else if(strcmp(yytext, "OVERLAP")==0) {
     optr->type = OVERLAP;
   }
+  else if(strcmp(yytext, "BSM")==0) {
+    optr->type = BSM;
+    have_bsm_op = 1;
+  }
+  else if(strcmp(yytext, "BSM2b")==0) {
+    optr->type = BSM2b;
+    have_bsm_op = 1;
+  }
+  else if(strcmp(yytext, "BSM2m")==0) {
+    optr->type = BSM2m;
+    have_bsm_op = 1;
+  }  
   else {
     fprintf(stderr, "Unknown operator type %s in line %d\n", yytext, line_of_file);
     exit(1);
@@ -544,7 +568,8 @@ static inline void rmQuotes(char *str){
   else if(optr->type == TMWILSON) BEGIN(TMOP);
   else if(optr->type == DBTMWILSON) BEGIN(DBTMOP);
   else if(optr->type == DBCLOVER) BEGIN(DBCLOVEROP);
-  else BEGIN(OVERLAPOP);
+  else if(optr->type == OVERLAP) BEGIN(OVERLAPOP);
+  else BEGIN(BSMOP);
 }
 
 <WILSONOP,TMOP,OVERLAPOP,DBTMOP,CLOVEROP,DBCLOVEROP>{
@@ -553,6 +578,9 @@ static inline void rmQuotes(char *str){
     optr->kappa = c;
     if(myverbose) printf("  kappa set to %f line %d operator %d\n", c, line_of_file, current_operator);
   }
+}
+
+<WILSONOP,TMOP,OVERLAPOP,DBTMOP,CLOVEROP,DBCLOVEROP,BSMOP>{
   {SPC}*MaxSolverIterations{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
     optr->maxiter = a;
@@ -700,6 +728,33 @@ static inline void rmQuotes(char *str){
   ^EndOperator{SPC}* {
     if(myverbose) printf("operator %d parsed line %d\n\n", current_operator, line_of_file);
     BEGIN(0);
+  }
+}
+
+<BSMOP>{
+  {SPC}*Solver{EQL} {
+    name_caller = YY_START; 
+    BEGIN(BSMSOLVER);
+  }
+  {SPC}*rho{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    rho_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter rho set to %f\n", rho_BSM);
+  }
+  {SPC}*eta{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    eta_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter eta set to %f\n", eta_BSM);
+  }
+  {SPC}*m0{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z0] = %lf", name, &c);
+    m0_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter m0 set to %f\n", m0_BSM);
+  }
+  {SPC}*npergauge{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    optr->npergauge = a;
+    if(myverbose) printf("  npergauge set to %d line %d operator %d\n", a, line_of_file, current_operator);
   }
 }
 
@@ -856,7 +911,7 @@ static inline void rmQuotes(char *str){
   }
 }
 
-<DBTMSOLVER,TMSOLVER,CSWSOLVER>{
+<DBTMSOLVER,TMSOLVER,CSWSOLVER,BSMSOLVER>{
   cg {
     optr->solver=1;
     if(myverbose) printf("  Solver set to CG line %d operator %d\n", line_of_file, current_operator);
@@ -1867,6 +1922,14 @@ static inline void rmQuotes(char *str){
   strcpy(gauge_input_filename,yytext);
   if(myverbose!=0) printf("Gauge Configuration input filename set to %s\n",yytext);
 }
+<SCALARINPUTFILE>{FILENAME} {
+  int length = strlen(yytext)+1;
+  if(length >= sizeof(scalar_input_filename)/sizeof(char) )
+    yy_fatal_error("Filename ScalarConfigInputFile too long! (see read_input.l)\n");
+
+  strcpy(scalar_input_filename,yytext);
+  if(myverbose!=0) printf("Scalar Configuration input filename set to %s\n",yytext);
+}
 <NSTORE>{DIGIT}+   {
   nstore=atoi(yytext);
   if(myverbose!=0) printf("Initial store counter set to %s\n",yytext);
@@ -1874,6 +1937,10 @@ static inline void rmQuotes(char *str){
 <NSTORE>readin {
   nstore=-1;
   if(myverbose!=0) printf("Trying to read InitialStoreCounter from file .nstore_counter\n");
+}
+<NSCALAR>{DIGIT}+   {
+  nscalar=atoi(yytext);
+  if(myverbose!=0) printf("Initial scalar counter set to %s\n",yytext);
 }
 <IOPROC>all         {
   g_stdio_proc = -1;
@@ -2002,6 +2069,22 @@ static inline void rmQuotes(char *str){
 <GAUGEWPREC>64 {
   gauge_precision_write_flag = 64;
   if(myverbose!=0) printf("Save gauges in 64 Bit precision!\n");
+}
+<SCALARRPREC>32 {
+  scalar_precision_read_flag = 32;
+  if(myverbose!=0) printf("Read scalars in 32 Bit precision!\n");
+}
+<SCALARRPREC>64 {
+  scalar_precision_read_flag = 64;
+  if(myverbose!=0) printf("Read scalars in 64 Bit precision!\n");
+}
+<SCALARWPREC>32 {
+  scalar_precision_write_flag = 32;
+  if(myverbose!=0) printf("Save scalars in 32 Bit precision!\n");
+}
+<SCALARWPREC>64 {
+  scalar_precision_write_flag = 64;
+  if(myverbose!=0) printf("Save scalars in 64 Bit precision!\n");
 }
 <REPRORND>yes {
   reproduce_randomnumber_flag = 1;
@@ -2175,7 +2258,11 @@ static inline void rmQuotes(char *str){
 }
 
 
+<<<<<<< HEAD
 <INITMONOMIAL,DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,NDPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLPOLYMONOMIAL,GAUGEMONOMIAL,INTEGRATOR,INITINTEGRATOR,INITMEASUREMENT,PIONNORMMEAS,ONLINEMEAS,ORIENTEDPLAQUETTESMEAS,GRADIENTFLOWMEAS,INITOPERATOR,TMOP,DBTMOP,OVERLAPOP,WILSONOP,CLOVEROP,DBCLOVEROP,POLYMONOMIAL,PLOOP,INITGPU,GPU,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL>{SPC}*\n   {
+=======
+<INITMONOMIAL,DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,NDPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLPOLYMONOMIAL,GAUGEMONOMIAL,INTEGRATOR,INITINTEGRATOR,INITMEASUREMENT,PIONNORMMEAS,ONLINEMEAS,ORIENTEDPLAQUETTESMEAS,INITOPERATOR,TMOP,DBTMOP,OVERLAPOP,WILSONOP,CLOVEROP,DBCLOVEROP,POLYMONOMIAL,PLOOP,INITGPU,GPU,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,BSMOP>{SPC}*\n   {
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   line_of_file++;
 }
 <*>{SPC}*\n                       {
@@ -2267,8 +2354,10 @@ int read_input(char * conf_file){
   write_cp_flag = _default_write_cp_flag;
   cp_interval = _default_cp_interval;
   nstore = _default_nstore;
+  nscalar = _default_nscalar;
   strcpy(rlxd_input_filename, _default_rlxd_input_filename);
   strcpy(gauge_input_filename, _default_gauge_input_filename);
+  strcpy(scalar_input_filename, _default_scalar_input_filename);
   g_stdio_proc = _default_g_stdio_proc;
   index_start = _default_index_start;
   index_end = _default_index_end;
@@ -2276,6 +2365,9 @@ int read_input(char * conf_file){
   X1 = _default_X1;
   X2 = _default_X2;
   X3 = _default_X3;
+  rho_BSM = _default_rho_BSM;
+  eta_BSM = _default_eta_BSM;
+  m0_BSM  = _default_m0_BSM;
   g_rgi_C1 = _default_g_rgi_C1;
   read_source_flag= _default_read_source_flag;
   if(SourceInfo.basename == NULL) SourceInfo.basename = (char*)malloc(100*sizeof(char));
@@ -2294,12 +2386,18 @@ int read_input(char * conf_file){
   gmresdr_nr_ev = _default_gmresdr_nr_ev;
   gauge_precision_read_flag = _default_gauge_precision_read_flag;
   gauge_precision_write_flag = _default_gauge_precision_write_flag;
+  scalar_precision_read_flag = _default_scalar_precision_read_flag;
+  scalar_precision_write_flag = _default_scalar_precision_write_flag;
   g_disable_IO_checks = _default_g_disable_IO_checks;
   reproduce_randomnumber_flag = _default_reproduce_randomnumber_flag;
   g_sloppy_precision_flag = _default_g_sloppy_precision_flag;
   use_stout_flag = _default_use_stout_flag;
   use_preconditioning = _default_use_preconditioning;
+<<<<<<< HEAD
   use_qudainverter = _default_use_qudainverter;
+=======
+  have_bsm_op = 0;
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   stout_rho = _default_stout_rho;
   stout_no_iter = _default_stout_no_iter;
 

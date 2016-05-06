@@ -37,6 +37,9 @@
 #include "operator/tm_operators.h"
 #include "linalg_eo.h"
 #include "operator/D_psi.h"
+#include "operator/D_psi_BSM.h"
+#include "operator/D_psi_BSM2b.h"
+#include "operator/D_psi_BSM2m.h"
 #include "operator/Dov_psi.h"
 #include "operator/tm_operators_nd.h"
 #include "operator/Hopping_Matrix.h"
@@ -44,6 +47,8 @@
 #include "invert_doublet_eo.h"
 #include "invert_overlap.h"
 #include "invert_clover_eo.h"
+#include "init/init_scalar_field.h"
+#include "init/init_bsm_2hop_lookup.h"
 #include "boundary.h"
 #include "start.h"
 #include "solver/eigenvalues.h"
@@ -108,7 +113,12 @@ int add_operator(const int type) {
   optr->conf_input = _default_gauge_input_filename;
   optr->no_extra_masses = 0;
 
+<<<<<<< HEAD
   (optr->solver_params).mcg_delta = _default_mixcg_innereps;
+=======
+  optr->npergauge = 1;
+  optr->n = 0;
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
 
   optr->applyM = &dummy_D;
   optr->applyQ = &dummy_D;
@@ -135,7 +145,7 @@ int add_operator(const int type) {
     optr->m = 0.;
     optr->inverter = &op_invert;
   }
-  if(optr->type == DBTMWILSON || optr->type == DBCLOVER) {
+  if(optr->type == DBTMWILSON || optr->type == DBCLOVER || optr->type == BSM || optr->type == BSM2m || optr->type == BSM2b ) {
     optr->no_flavours = 2;
     g_running_phmc = 1;
   }
@@ -175,7 +185,11 @@ int init_operators() {
           optr->applyMp = &D_psi;
           optr->applyMm = &D_psi;
         }
+<<<<<<< HEAD
         if(optr->solver == CGMMS) {
+=======
+        if(optr->solver == 12) {
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
           if (g_cart_id == 0 && optr->even_odd_flag == 1)
             fprintf(stderr, "CG Multiple mass solver works only without even/odd! Forcing!\n");
           optr->even_odd_flag = 0;
@@ -183,7 +197,11 @@ int init_operators() {
             fprintf(stderr, "CGMMS doesn't need AddDownPropagator! Switching Off!\n");
           optr->DownProp = 0;
         }
+<<<<<<< HEAD
          
+=======
+              
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
         if(optr->solver == INCREIGCG){
           if (g_cart_id == 0 && optr->DownProp){
              fprintf(stderr,"Warning: When even-odd preconditioning is used, the eigenvalues for +mu and -mu will be little different\n");
@@ -193,16 +211,27 @@ int init_operators() {
             fprintf(stderr,"Incremental EigCG solver is added only with Even-Odd preconditioning!. Forcing\n");
           optr->even_odd_flag = 1;
         }
+<<<<<<< HEAD
       }else if(optr->type == OVERLAP) {
         optr->even_odd_flag = 0;
         optr->applyM = &Dov_psi;
         optr->applyQ = &Qov_psi;
       }else if(optr->type == DBTMWILSON) {
+=======
+      }
+      else if(optr->type == OVERLAP) {
+        optr->even_odd_flag = 0;
+        optr->applyM = &Dov_psi;
+        optr->applyQ = &Qov_psi;
+      }
+      else if(optr->type == DBTMWILSON) {
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
         optr->even_odd_flag = 1;
         optr->applyDbQsq = &Qtm_pm_ndpsi;
         /* TODO: this should be here!       */
         /* Chi`s-spinors  memory allocation */
         /*       if(init_chi_spinor_field(VOLUMEPLUSRAND/2, 20) != 0) { */
+<<<<<<< HEAD
         /*   fprintf(stderr, "Not enough memory for 20 NDPHMC Chi fields! Aborting...\n"); */
         /*   exit(0); */
         /*       } */
@@ -219,6 +248,44 @@ int init_operators() {
       if(g_proc_id == 0) {
         fprintf(stderr, "Error: You're trying to use QUDA but this build was not configured for QUDA usage.\n");
         exit(-2);
+=======
+        /*  fprintf(stderr, "Not enough memory for 20 NDPHMC Chi fields! Aborting...\n"); */
+        /*  exit(0); */
+        /*       } */
+      }
+      else if(optr->type == DBCLOVER) {
+        optr->even_odd_flag = 1;
+        optr->applyDbQsq = &Qtm_pm_ndpsi;
+      }
+      else if(optr->type == BSM || optr->type == BSM2b || optr->type == BSM2m ) {
+        // For the BSM operator we don't use kappa normalisation,
+        // as a result, when twisted boundary conditions are applied this needs to be unity.
+        // In addition, unlike in the Wilson case, the hopping term comes with a plus sign.
+        // However, in boundary(), the minus sign for the Wilson case is implicitly included.
+        // We therefore use -1.0 here.
+        optr->kappa = -1.0; 
+        optr->even_odd_flag = 0;
+        optr->applyMbi    = &D_psi_BSM;
+        optr->applyMdagbi = D_psi_dagger_BSM;
+        optr->applyQsqbi  = &Q2_psi_BSM;
+        if( optr->type == BSM2b ) {
+          optr->applyMbi    = &D_psi_BSM2b;
+          optr->applyMdagbi = &D_psi_dagger_BSM2b;
+          optr->applyQsqbi  = &Q2_psi_BSM2b;
+          // initialise lookup table for BSM2b operator (multiple calls simply result in no-op, safe)
+          init_bsm_2hop_lookup(VOLUME);
+        } else if( optr->type == BSM2m ){
+          optr->applyMbi    = &D_psi_BSM2m;
+          optr->applyMdagbi = &D_psi_dagger_BSM2m;
+          optr->applyQsqbi  = &Q2_psi_BSM2m;
+        }
+        // generate space for 4
+        int j = init_scalar_field(VOLUMEPLUSRAND, 4);
+        if ( j!= 0) {
+          fprintf(stderr, "Not enough memory for scalar fields! Aborting...\n");
+          exit(0);
+        }
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
       }
 #endif
     }
@@ -274,6 +341,7 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
         printf("#\n# 2 kappa mu = %e, kappa = %e, c_sw = %e\n", g_mu, g_kappa, g_c_sw);
       }
       if(optr->type != CLOVER) {
+<<<<<<< HEAD
         if(use_preconditioning){
           g_precWS=(void*)optr->precWS;
         } else {
@@ -303,6 +371,34 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
       
         /* check result */
          Msw_full(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1], optr->prop0, optr->prop1);
+=======
+  if(use_preconditioning){
+    g_precWS=(void*)optr->precWS;
+  }
+  else {
+    g_precWS=NULL;
+  }
+  
+  optr->iterations = invert_eo( optr->prop0, optr->prop1, optr->sr0, optr->sr1,
+              optr->eps_sq, optr->maxiter,
+              optr->solver, optr->rel_prec,
+              0, optr->even_odd_flag,optr->no_extra_masses, optr->extra_masses, optr->solver_params, optr->id );
+  
+  /* check result */
+  M_full(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1], optr->prop0, optr->prop1);
+      }
+      else {
+  /* this must be EE here!   */
+  /* to match clover_inv in Qsw_psi */
+  sw_invert(EE, optr->mu);
+
+  optr->iterations = invert_clover_eo(optr->prop0, optr->prop1, optr->sr0, optr->sr1,
+              optr->eps_sq, optr->maxiter,
+              optr->solver, optr->rel_prec,optr->solver_params,
+              &g_gauge_field, &Qsw_pm_psi, &Qsw_minus_psi);
+  /* check result */
+  Msw_full(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1], optr->prop0, optr->prop1);
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
       }
 
       diff(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI], optr->sr0, VOLUME / 2);
@@ -332,7 +428,11 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
     if(optr->type == DBCLOVER) {
       g_c_sw = optr->c_sw;
       if (g_cart_id == 0 && g_debug_level > 1) {
+<<<<<<< HEAD
         printf("#\n# csw = %e, computing clover leafs\n", g_c_sw);
+=======
+  printf("#\n# csw = %e, computing clover leafs\n", g_c_sw);
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
       }
       init_sw_fields(VOLUME);
       sw_term( (const su3**) g_gauge_field, optr->kappa, optr->c_sw); 
@@ -342,6 +442,7 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
     }
 
     for(i = 0; i < SourceInfo.no_flavours; i++) {
+<<<<<<< HEAD
     if(optr->type != DBCLOVER) {
       optr->iterations = invert_doublet_eo( optr->prop0, optr->prop1, optr->prop2, optr->prop3,
                                             optr->sr0, optr->sr1, optr->sr2, optr->sr3,
@@ -360,15 +461,42 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
         M_full(g_spinor_field[DUM_DERI+1], g_spinor_field[DUM_DERI+2], optr->prop0, optr->prop1);
       } else {
         Msw_full(g_spinor_field[DUM_DERI+1], g_spinor_field[DUM_DERI+2], optr->prop0, optr->prop1);
+=======
+      if(optr->type != DBCLOVER) {
+  optr->iterations = invert_doublet_eo( optr->prop0, optr->prop1, optr->prop2, optr->prop3, 
+                optr->sr0, optr->sr1, optr->sr2, optr->sr3,
+                optr->eps_sq, optr->maxiter,
+                optr->solver, optr->rel_prec);
+      }
+      else {
+  optr->iterations = invert_cloverdoublet_eo( optr->prop0, optr->prop1, optr->prop2, optr->prop3, 
+                optr->sr0, optr->sr1, optr->sr2, optr->sr3,
+                optr->eps_sq, optr->maxiter,
+                optr->solver, optr->rel_prec);
+      }
+      g_mu = optr->mubar;
+      if(optr->type != DBCLOVER) {
+  M_full(g_spinor_field[DUM_DERI+1], g_spinor_field[DUM_DERI+2], optr->prop0, optr->prop1); 
+      }
+      else {
+  Msw_full(g_spinor_field[DUM_DERI+1], g_spinor_field[DUM_DERI+2], optr->prop0, optr->prop1); 
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
       }
       assign_add_mul_r(g_spinor_field[DUM_DERI+1], optr->prop2, -optr->epsbar, VOLUME/2);
       assign_add_mul_r(g_spinor_field[DUM_DERI+2], optr->prop3, -optr->epsbar, VOLUME/2);
 
       g_mu = -g_mu;
       if(optr->type != DBCLOVER) {
+<<<<<<< HEAD
         M_full(g_spinor_field[DUM_DERI+3], g_spinor_field[DUM_DERI+4], optr->prop2, optr->prop3);
       } else {
         Msw_full(g_spinor_field[DUM_DERI+3], g_spinor_field[DUM_DERI+4], optr->prop2, optr->prop3);
+=======
+  M_full(g_spinor_field[DUM_DERI+3], g_spinor_field[DUM_DERI+4], optr->prop2, optr->prop3); 
+      }
+      else {
+  Msw_full(g_spinor_field[DUM_DERI+3], g_spinor_field[DUM_DERI+4], optr->prop2, optr->prop3);
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
       }
       assign_add_mul_r(g_spinor_field[DUM_DERI+3], optr->prop0, -optr->epsbar, VOLUME/2);
       assign_add_mul_r(g_spinor_field[DUM_DERI+4], optr->prop1, -optr->epsbar, VOLUME/2);
@@ -442,6 +570,75 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
 
     if(write_prop) optr->write_prop(op_id, index_start, 0);
   }
+  else if( optr->type == BSM || optr->type == BSM2b || optr->type == BSM2m ) {
+    for(i = 0; i < SourceInfo.no_flavours; i++) {
+
+      convert_eo_to_lexic(g_spinor_field[8], optr->sr0, optr->sr1);
+      convert_eo_to_lexic(g_spinor_field[9], optr->sr2, optr->sr3);
+      compact(g_bispinor_field[1], g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1]);
+      
+      optr->iterations = cg_her_bi(g_bispinor_field[0], g_bispinor_field[1],
+                optr->maxiter, optr->eps_sq, optr->rel_prec, VOLUME, optr->applyQsqbi);
+
+      optr->applyQsqbi(g_bispinor_field[2], g_bispinor_field[0]);
+      assign_diff_mul((spinor*)g_bispinor_field[2], (spinor*)g_bispinor_field[1], 1.0, 2*VOLUME);
+      double squarenorm = square_norm((spinor*)g_bispinor_field[2], 2*VOLUME, 1);
+      optr->reached_prec = squarenorm;
+      if(g_proc_id==0) {
+        printf("# BSM Dirac inversion ||A*result1-b||^2 = %e\n\n", squarenorm);
+        fflush(stdout);
+      }
+
+      optr->applyMdagbi(g_bispinor_field[1], g_bispinor_field[0]);
+      decompact(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1], g_bispinor_field[1]);
+
+      convert_lexic_to_eo(optr->prop0, optr->prop1, g_spinor_field[DUM_DERI]);
+      convert_lexic_to_eo(optr->prop2, optr->prop3, g_spinor_field[DUM_DERI+1]);
+
+      /* write propagator */
+      if(write_prop) optr->write_prop(op_id, index_start, 2*i);
+
+      compact(g_bispinor_field[0], g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1]);
+
+      optr->applyMbi(g_bispinor_field[1], g_bispinor_field[0]);
+      
+      // accumulate number of iterations
+      optr->iterations += cg_her_bi(g_bispinor_field[0], g_bispinor_field[1],
+                                    optr->maxiter, optr->eps_sq, optr->rel_prec, VOLUME, optr->applyQsqbi);
+
+      optr->applyQsqbi(g_bispinor_field[2], g_bispinor_field[0]);
+      assign_diff_mul((spinor*)g_bispinor_field[2], (spinor*)g_bispinor_field[1], 1.0, 2*VOLUME);
+      squarenorm = square_norm((spinor*)g_bispinor_field[2], 2*VOLUME, 1);
+      // store the larger of the two residual norms
+      optr->reached_prec = optr->reached_prec > squarenorm ? optr->reached_prec : squarenorm;
+      if(g_proc_id==0) {
+        printf("# BSM Dirac inversion ||A*result1-b||^2 = %e\n\n", squarenorm);
+        fflush(stdout);
+      }
+
+      optr->applyMdagbi(g_bispinor_field[1], g_bispinor_field[0]);
+      decompact(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI+1], g_bispinor_field[1]);
+
+      convert_lexic_to_eo(optr->prop0, optr->prop1, g_spinor_field[DUM_DERI]);
+      convert_lexic_to_eo(optr->prop2, optr->prop3, g_spinor_field[DUM_DERI+1]);
+
+      /* write propagator */
+      if(write_prop) optr->write_prop(op_id, index_start, 2*i+1);
+
+      // mirror sources
+      if(i == 0 && SourceInfo.no_flavours == 2 && SourceInfo.type != 1) {
+        spinor * tmp;
+        tmp = optr->sr0;
+        optr->sr0 = optr->sr2;
+        optr->sr2 = tmp;
+        tmp = optr->sr1;
+        optr->sr1 = optr->sr3;
+        optr->sr3 = tmp;
+      }
+      /* volume sources need only one inversion */
+      else if(SourceInfo.type == 1) i++;
+    }
+  }
   etime = gettime();
   if (g_cart_id == 0 && g_debug_level > 0) {
     fprintf(stdout, "# Inversion done in %d iterations, squared residue = %e!\n",
@@ -454,7 +651,8 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
 
 void op_write_prop(const int op_id, const int index_start, const int append_) {
   operator * optr = &operator_list[op_id];
-  char filename[100];
+  const unsigned int strl = 100;
+  char filename[strl];
   char ending[15];
   WRITER *writer = NULL;
   int append = 0;
@@ -472,19 +670,40 @@ void op_write_prop(const int op_id, const int index_start, const int append_) {
   else {
     strcpy(ending, "inverted");
   }
-
+  
+  // 1 == volume source
   if(SourceInfo.type != 1) {
     if (PropInfo.splitted) {
+<<<<<<< HEAD
       if(T_global > 99) sprintf(filename, "%s.%.4d.%.3d.%.2d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, SourceInfo.ix, ending);
       else sprintf(filename, "%s.%.4d.%.2d.%.2d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, SourceInfo.ix, ending);
     }
     else {
       if(T_global > 99) sprintf(filename, "%s.%.4d.%.3d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, ending);
       else sprintf(filename, "%s.%.4d.%.2d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, ending);
+=======
+      /* operators with additional external fields require one more index */
+      if( optr->type==BSM || optr->type==BSM2b || optr->type==BSM2m ){
+        snprintf(filename, strl, "%s.%.4d.%.2d.%.2d.%03d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, SourceInfo.ix, optr->n, ending);
+      }else{
+        snprintf(filename, strl, "%s.%.4d.%.2d.%.2d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, SourceInfo.ix, ending);
+      }
+    }
+    else {
+      if( optr->type==BSM || optr->type == BSM2b || optr->type==BSM2m ){
+        snprintf(filename, strl, "%s.%.4d.%.2d.%03d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, optr->n, ending);
+      }else{
+        snprintf(filename, strl, "%s.%.4d.%.2d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.t, ending);
+      }
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
     }
   }
   else {
-    sprintf(filename, "%s.%.4d.%.5d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.sample, ending);
+    if(optr->type==BSM || optr->type==BSM2b || optr->type==BSM2m ){
+      snprintf(filename, strl, "%s.%.4d.%.5d.%03d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.sample, optr->n, ending);
+    } else {
+      snprintf(filename, strl, "%s.%.4d.%.5d.%s", SourceInfo.basename, SourceInfo.nstore, SourceInfo.sample, ending);
+    }
   }
 
   if(!PropInfo.splitted || append_)
@@ -493,7 +712,11 @@ void op_write_prop(const int op_id, const int index_start, const int append_) {
   construct_writer(&writer, filename, append);
   if (PropInfo.splitted || SourceInfo.ix == index_start) {
     inverterInfo = construct_paramsInverterInfo(optr->reached_prec, optr->iterations, 
+<<<<<<< HEAD
                                                 optr->solver, optr->no_flavours);
+=======
+            optr->solver, optr->no_flavours);
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
     write_spinor_info(writer, PropInfo.format, inverterInfo, append);
     free(inverterInfo);
   }
@@ -503,10 +726,17 @@ void op_write_prop(const int op_id, const int index_start, const int append_) {
     sourceFormat = construct_paramsSourceFormat(SourceInfo.precision, optr->no_flavours, 4, 3);
     write_source_format(writer, sourceFormat);
     status = write_spinor(writer, &operator_list[op_id].sr0, &operator_list[op_id].sr1, 
+<<<<<<< HEAD
                           1, SourceInfo.precision);
     if(optr->no_flavours == 2) {
       status = write_spinor(writer, &operator_list[op_id].sr2, &operator_list[op_id].sr3, 
                             1, SourceInfo.precision);
+=======
+        1, SourceInfo.precision);
+    if(optr->no_flavours == 2) {
+      status = write_spinor(writer, &operator_list[op_id].sr2, &operator_list[op_id].sr3, 
+          1, SourceInfo.precision);
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
     }
     free(sourceFormat);
   }

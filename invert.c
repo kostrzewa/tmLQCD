@@ -52,7 +52,11 @@
 #include "xchange/xchange.h"
 #endif
 #include <io/utils.h>
+<<<<<<< HEAD
 #include "source_generation.h"
+=======
+#include <io/scalar.h>
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
 #include "read_input.h"
 #include "mpi_init.h"
 #include "sighandler.h"
@@ -102,6 +106,7 @@ int main(int argc, char *argv[])
   char datafilename[206];
   char parameterfilename[206];
   char conf_filename[50];
+  char scalar_filename[50];
   char * input_filename = NULL;
   char * filename = NULL;
   double plaquette_energy;
@@ -224,6 +229,14 @@ int main(int argc, char *argv[])
   if (j != 0) {
     fprintf(stderr, "Not enough memory for spinor fields! Aborting...\n");
     exit(-1);
+  }
+
+  if(have_bsm_op) {
+    j = init_bispinor_field(VOLUMEPLUSRAND, 6);
+    if ( j!= 0) {
+      fprintf(stderr, "Not enough memory for bispinor fields! Aborting...\n");
+      exit(0);
+    }
   }
 
   if (g_running_phmc) {
@@ -472,21 +485,57 @@ int main(int argc, char *argv[])
           fitPrecParams(op_id);
         }
       }
-
-      for(isample = 0; isample < no_samples; isample++) {
-        for (ix = index_start; ix < index_end; ix++) {
-          if (g_cart_id == 0) {
-            fprintf(stdout, "#\n"); /*Indicate starting of new index*/
+     
+      /* set scalar field counter to InitialScalarCounter */
+      int iscalar = nscalar; 
+      /* support multiple inversions for the BSM operator, one for each scalar field */
+      for(int i_pergauge = 0; i_pergauge < operator_list[op_id].npergauge; ++i_pergauge){
+        // generate or read the scalar field for the BSM operator
+        if(operator_list[op_id].type == BSM || operator_list[op_id].type == BSM2b || operator_list[op_id].type == BSM2m){
+          /* used by op_write_prop to generate an appropriate output filename */
+          operator_list[op_id].n = i_pergauge;
+          // read scalar field
+          if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
+            for( int s = 0; s < 4; s++) { ranlxd(g_scalar_field[s], VOLUME); }
+          } else {
+            snprintf(scalar_filename, 50, "%s.%d", scalar_input_filename, iscalar);
+            ++iscalar;
+    	      if (g_cart_id == 0) {
+    	        printf("#\n# Trying to read scalar field from file %s in %s precision.\n",
+    		             scalar_filename, (scalar_precision_read_flag == 32 ? "single" : "double"));
+    	        fflush(stdout);
+    	      }
+    	
+            int i;
+            double read_end, read_begin=gettime();
+            if( (i = read_scalar_field(scalar_filename,g_scalar_field)) !=0) {
+              fprintf(stderr, "Error %d while reading scalar field from %s\n Aborting...\n", i, scalar_filename);
+              exit(-2);
+            }
+            read_end=gettime();
+            
+            if (g_cart_id == 0) {
+              printf("# Finished reading scalar field in %.4e seconds.\n",read_end-read_begin);
+              fflush(stdout);
+            }
           }
-          /* we use g_spinor_field[0-7] for sources and props for the moment */
-          /* 0-3 in case of 1 flavour  */
-          /* 0-7 in case of 2 flavours */
-          prepare_source(nstore, isample, ix, op_id, read_source_flag, source_location);
-          //randmize initial guess for eigcg if needed-----experimental
-          if( (operator_list[op_id].solver == INCREIGCG) && (operator_list[op_id].solver_params.eigcg_rand_guess_opt) ){ //randomize the initial guess
-              gaussian_volume_source( operator_list[op_id].prop0, operator_list[op_id].prop1,isample,ix,0); //need to check this
-          } 
-          operator_list[op_id].inverter(op_id, index_start, 1);
+        }
+        
+        for(isample = 0; isample < no_samples; isample++) {
+          for (ix = index_start; ix < index_end; ix++) {
+            if (g_cart_id == 0) {
+              fprintf(stdout, "#\n"); /*Indicate starting of new index*/
+            }
+            /* we use g_spinor_field[0-7] for sources and props for the moment */
+            /* 0-3 in case of 1 flavour  */
+            /* 0-7 in case of 2 flavours */
+            prepare_source(nstore, isample, ix, op_id, read_source_flag, source_location);
+            //randmize initial guess for eigcg if needed-----experimental
+            if( (operator_list[op_id].solver == INCREIGCG) && (operator_list[op_id].solver_params.eigcg_rand_guess_opt) ){ //randomize the initial guess
+                gaussian_volume_source( operator_list[op_id].prop0, operator_list[op_id].prop1,isample,ix,0); //need to check this
+            } 
+            operator_list[op_id].inverter(op_id, index_start, 1);
+          }
         }
       }
 
@@ -511,7 +560,11 @@ int main(int argc, char *argv[])
   free_blocks();
   free_dfl_subspace();
   free_gauge_field();
+<<<<<<< HEAD
   free_gauge_field_32();
+=======
+  free_scalar_field();
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   free_geometry_indices();
   free_spinor_field();
   free_spinor_field_32();  

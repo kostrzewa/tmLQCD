@@ -987,7 +987,11 @@ if test ! -e tests/regressions; then
 fi
 
 
+<<<<<<< HEAD
 LIBS="-lhmc -lmonomial -loperator -lsolver -linit -lmeas -llinalg -lhmc -lxchange -lrational -lio $LIBS"
+=======
+LIBS="-lhmc -lmonomial -loperator -lsolver -linit -llinalg -lhmc -lxchange -lrational -lio -lbuffers $LIBS"
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
 AUTOCONF=autoconf
 
 for i in $USESUBDIRS

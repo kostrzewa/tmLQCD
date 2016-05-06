@@ -1,0 +1,6 @@
+L=24
+T=48
+ompnumthreads=4
+GaugeFieldInFile = create_random_gaugefield
+ScalarFieldInFile = create_random_scalarfield
+

@@ -65,9 +65,14 @@ GPUOBJECTS := $(patsubst $(srcdir)/$(GPUDIR)/%.cu, $(GPUDIR)/%.o, $(GPUSOURCES))
 
 NOOPTMOD = test/check_xchange test/check_geometry
 
+<<<<<<< HEAD
 PROGRAMS = hmc_tm benchmark invert gen_sources  \
 	check_locallity test_lemon hopping_test LapH_ev \
 	offline_measurement
+=======
+PROGRAMS = hmc_tm benchmark invert gen_sources test_DslashBSM  \
+	check_locallity test_lemon hopping_test LapH_ev
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
 
 ALLOBJ = ${MODULES} ${PROGRAMS} ${SMODULES}
 SUBDIRS = ${USESUBDIRS}
@@ -75,8 +80,12 @@ SUBDIRS = ${USESUBDIRS}
 # delete the default suffix rules
 .SUFFIXES:
 
+<<<<<<< HEAD
 # need to build modules before subdirs!
 all: Makefile dep $(SUBDIRS) hmc_tm invert benchmark offline_measurement
+=======
+all: Makefile dep $(SUBDIRS) hmc_tm invert benchmark test_DslashBSM
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
 
 $(SUBDIRS):
 	$(MAKE) --directory=$@
@@ -146,10 +155,17 @@ compile-clean: compile-clean-recursive Makefile
 	rm -f *.o *.d test/*.o test/*.d tests/*.o tests/*.d
 
 clean: clean-recursive Makefile
+<<<<<<< HEAD
 	rm -f benchmark hmc_tm invert *.o *.d test/*.o test/*.d tests/*.o tests/*.d
 
 distclean: distclean-recursive Makefile
 	rm -f benchmark hmc_tm invert *.o *.d *~ Makefile config.log config.status fixed_volume.h
+=======
+	rm -f benchmark hmc_tm invert test_DslashBSM *.o *.d test/*.o test/*.d tests/*.o tests/*.d
+
+distclean: distclean-recursive Makefile
+	rm -f benchmark hmc_tm invert test_DslashBSM *.o *.d *~ Makefile config.log config.status fixed_volume.h
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
 	rm -f config.h
 
 .PHONY: all ${SUBDIRS} ${top_srcdir}/git_hash.h clean compile-clean distclean dep install \

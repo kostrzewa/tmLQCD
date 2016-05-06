@@ -1,5 +1,5 @@
 /***********************************************************************
- * Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Carsten Urbach
+ * Copyright (C) 2016 Bartosz Kostrzewa
  *
  * This file is part of tmLQCD.
  *
@@ -17,13 +17,18 @@
  * along with tmLQCD.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************/
 
-#ifndef _BOUNDARY_H
-#define _BOUNDARY_H
+/*********************************************************************************
+ *
+ * allocate memory and initialise index lookup table for 2-hop Frezzotti-Rossi BSM
+ * operator
+ * must be called after geometry()! (geometry_eo.h)
+ *
+ *********************************************************************************/
 
-#include "su3.h"
+#ifndef _INIT_BSM_2HOP_LOOKUP_H
+#define _INIT_BSM_2HOP_LOOKUP_H
 
-extern _Complex double ka0, ka1, ka2, ka3;
-extern _Complex double phase_0, phase_1, phase_2, phase_3, phase_00, phase_11, phase_22, phase_33;
-void boundary(const double kappa);
+int init_bsm_2hop_lookup(const int V);
+void free_bsm_2hop_lookup();
 
 #endif

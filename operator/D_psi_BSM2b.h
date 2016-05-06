@@ -1,5 +1,7 @@
 /***********************************************************************
- * Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Carsten Urbach
+ *
+ * Copyright (C) 2015 Mario Schroeck
+ *               2016 Bartosz Kostrzewa
  *
  * This file is part of tmLQCD.
  *
@@ -17,13 +19,18 @@
  * along with tmLQCD.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************/
 
-#ifndef _BOUNDARY_H
-#define _BOUNDARY_H
+#ifndef _D_PSI_BSM2b_H
+#define _D_PSI_BSM2b_H
 
-#include "su3.h"
+#include "block.h"
 
-extern _Complex double ka0, ka1, ka2, ka3;
-extern _Complex double phase_0, phase_1, phase_2, phase_3, phase_00, phase_11, phase_22, phase_33;
-void boundary(const double kappa);
+void D_psi_BSM2b(bispinor * const P, bispinor * const Q);
+void D_psi_dagger_BSM2b(bispinor * const P, bispinor * const Q);
+void Q2_psi_BSM2b(bispinor * const P, bispinor * const Q);
+
+typedef enum hopdirection {
+  HOP_UP=0,
+  HOP_DN
+} hopdirection;
 
 #endif

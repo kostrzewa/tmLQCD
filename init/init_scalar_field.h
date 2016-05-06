@@ -15,15 +15,17 @@
  * 
  * You should have received a copy of the GNU General Public License
  * along with tmLQCD.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Scalar fields by Mario Schroeck 2014, <mario.schroeck@roma3.infn.it>
+ * (Following closely the lines of init_spinor_field.)
+ *
  ***********************************************************************/
+#ifndef _INIT_SCALAR_FIELD_H
+#define _INIT_SCALAR_FIELD_H
 
-#ifndef _BOUNDARY_H
-#define _BOUNDARY_H
 
-#include "su3.h"
+int init_scalar_field(const int V, const int nr);
 
-extern _Complex double ka0, ka1, ka2, ka3;
-extern _Complex double phase_0, phase_1, phase_2, phase_3, phase_00, phase_11, phase_22, phase_33;
-void boundary(const double kappa);
+void free_scalar_field();
 
 #endif

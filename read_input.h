@@ -51,9 +51,11 @@ extern "C"
   extern int write_cp_flag;
   extern int cp_interval;
   extern int nstore;
+  extern int nscalar;
   extern int crylov_space_dim;
   extern char rlxd_input_filename[500];
   extern char gauge_input_filename[500];
+  extern char scalar_input_filename[500];
   extern int subforwilson_flag;
   extern int eigenvalue_method_flag;
   extern int eigenvalue_max_iterations;
@@ -68,6 +70,8 @@ extern "C"
   extern int return_check_interval;
   extern int gauge_precision_read_flag;
   extern int gauge_precision_write_flag;
+  extern int scalar_precision_read_flag;
+  extern int scalar_precision_write_flag;
   extern int reproduce_randomnumber_flag;
   extern double stout_rho;
   extern int stout_no_iter;
@@ -119,6 +123,8 @@ extern "C"
   extern int use_qudainverter;
 
   extern int nblocks_t, nblocks_x, nblocks_y, nblocks_z;
+
+  extern int have_bsm_op;
 
   int read_input(char *);
   int reread_input(char *);

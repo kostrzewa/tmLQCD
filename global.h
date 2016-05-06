@@ -63,6 +63,9 @@
 # include "bgl.h"
 #endif
 
+// for Frezzotti-Rossi model Dirac operator
+EXTERN double eta_BSM, rho_BSM, m0_BSM;
+
 EXTERN int DUM_DERI, DUM_SOLVER, DUM_MATRIX;
 EXTERN int NO_OF_SPINORFIELDS;
 EXTERN int NO_OF_SPINORFIELDS_32;
@@ -100,6 +103,7 @@ EXTERN int ** g_iup_eo; /* NEW GIUPDNEO */
 EXTERN int ** g_idn_eo;
 EXTERN int ** g_coord;
 EXTERN int * g_hi;
+EXTERN int * g_bsm_2hop_lookup;
 
 
 EXTERN int * g_field_z_ipt_even;
@@ -191,6 +195,9 @@ EXTERN su3 ** g_tempgauge_field;
 EXTERN su3adj ** moment;
 EXTERN su3adj ** df0;
 EXTERN su3adj ** ddummy;
+
+/* scalar field (BSM toy model) */
+EXTERN scalar ** g_scalar_field;
 
 EXTERN int count00,count01,count10,count11,count20,count21;
 EXTERN double g_kappa, g_c_sw, g_ka_csw_8, g_beta;

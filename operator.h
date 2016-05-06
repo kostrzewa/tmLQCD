@@ -28,12 +28,17 @@
 #include "solver/solver_params.h"
                                     
 
-#define TMWILSON 0
-#define OVERLAP 1
-#define WILSON 2
-#define DBTMWILSON 3
-#define CLOVER 4
-#define DBCLOVER 5
+typedef enum op_type {
+  TMWILSON = 0,
+  OVERLAP,
+  WILSON,
+  DBTMWILSON,
+  CLOVER,
+  DBCLOVER,
+  BSM,
+  BSM2b,
+  BSM2m
+} op_type;
 
 #define max_no_operators 10
 
@@ -94,6 +99,14 @@ typedef struct {
   double extra_masses[MAX_EXTRA_MASSES];
   int no_extra_masses;
 
+<<<<<<< HEAD
+=======
+  /* for the BSM operator, support for multiple scalar fields per sample/index */
+  int npergauge;
+  int n;
+
+
+>>>>>>> 514dd765d69bf52768b537a8dc1a161e8c00ca80
   /* chebyshef coefficients for the overlap */
   double * coefs;
   /* various versions of the Dirac operator */
@@ -103,6 +116,11 @@ typedef struct {
   void (*applyQp) (spinor * const, spinor * const);
   void (*applyQm) (spinor * const, spinor * const);
   void (*applyQsq) (spinor * const, spinor * const);
+
+  void (*applyMbi)    (bispinor * const, bispinor * const);
+  void (*applyMdagbi) (bispinor * const, bispinor * const);
+  void (*applyQsqbi)  (bispinor * const, bispinor * const);
+  
   void (*applyMp) (spinor * const, spinor * const);
   void (*applyMm) (spinor * const, spinor * const);
   void (*applyDbQsq) (spinor * const, spinor * const, spinor * const, spinor * const);
