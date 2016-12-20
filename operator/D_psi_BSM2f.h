@@ -1,6 +1,7 @@
 /***********************************************************************
  *
- * Copyright (C) 2009 Carsten Urbach
+ * Copyright (C) 2015 Mario Schroeck
+ *               2016 Bartosz Kostrzewa
  *
  * This file is part of tmLQCD.
  *
@@ -18,24 +19,13 @@
  * along with tmLQCD.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************/
 
-#include "gauge.ih"
+#ifndef _D_PSI_BSM2f_H
+#define _D_PSI_BSM2f_H
 
-void allocate_gauge_buffers(unsigned int count)
-{
-  if ((g_gauge_buffers.allocated + count) > g_gauge_buffers.max)
-    fatal_error("Maximum number of allocated gauge fields exceeded.", "allocate_gauge_buffers");
-  
-  for (unsigned int ctr = 0; ctr < count; ++ctr)
-  {
-    void *raw = malloc(sizeof(void*) + ALIGN_BASE + sizeof(su3_tuple) * VOLUMEPLUSRAND + 1);
-    if (raw == NULL)
-      fatal_error("Could not allocate the requested amount of memory.", "allocate_gauge_buffers");
-    size_t p = (size_t)raw + sizeof(void*);
-    p = ((p + ALIGN_BASE) & ~ALIGN_BASE);
-    ((void**)p)[-1] = raw;
+//#include "block.h"
 
-    g_gauge_buffers.reserve[g_gauge_buffers.free] = (su3_tuple*)p;
-    ++g_gauge_buffers.allocated;
-    ++g_gauge_buffers.free;
-  }
-}
+void D_psi_BSM2f(bispinor * const P, bispinor * const Q);
+void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q);
+void Q2_psi_BSM2f(bispinor * const P, bispinor * const Q);
+
+#endif

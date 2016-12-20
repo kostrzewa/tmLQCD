@@ -38,7 +38,9 @@ libbuffers_TARGETS = 	gauge \
 			gauge_initialize_gauge_buffers \
 			gauge_return_gauge_field \
 			gauge_return_gauge_field_array \
-			utils_generic_exchange
+			utils_generic_exchange \
+                        utils_generic_exchange_nogauge \
+			utils_generic_exchange_nonblocking
 
 libbuffers_OBJECTS = $(addsuffix .o, ${libbuffers_TARGETS})
 

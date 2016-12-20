@@ -197,6 +197,28 @@ void unit_spinor_field(const int k)
     *s = unit_spinor();
   }
 }
+static void unit_vector( double  *v, int n )
+{
+  int i;
+  for ( i=0; i< n; i++){
+     v[i]=1.0;
+  }
+}
+
+//unit spinor field on all sites
+void unit_spinor_field_lexic(spinor * const k ) {
+
+  int coords[4];
+  spinor *s;
+  double v[24];
+  int x;
+  for (x = 0; x < VOLUME; x++) {
+     unit_vector(v, 24);
+     s = k + x;
+     memcpy(s, v, 24*sizeof(double));
+  }
+  return;
+}
 
 /* Function provides a spinor field of length VOLUME with
    distributions given by rn_type as defined in start.h */

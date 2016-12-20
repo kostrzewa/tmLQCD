@@ -24,5 +24,7 @@
 #include "global.h"
 
 int read_scalar_field(char * filename, scalar ** const sf);
+int read_scalar_field_parallel(char * filename, scalar ** const sf);
+void smear_scalar_fields_correlator( scalar ** const sf, scalar ** smearedfield );
 
 #endif

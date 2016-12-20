@@ -39,6 +39,7 @@
 #include "operator/D_psi.h"
 #include "operator/D_psi_BSM.h"
 #include "operator/D_psi_BSM2b.h"
+#include "operator/D_psi_BSM2f.h"
 #include "operator/D_psi_BSM2m.h"
 #include "operator/Dov_psi.h"
 #include "operator/tm_operators_nd.h"
@@ -137,7 +138,7 @@ int add_operator(const int type) {
     optr->m = 0.;
     optr->inverter = &op_invert;
   }
-  if(optr->type == DBTMWILSON || optr->type == DBCLOVER || optr->type == BSM || optr->type == BSM2m || optr->type == BSM2b ) {
+  if(optr->type == DBTMWILSON || optr->type == DBCLOVER || optr->type == BSM || optr->type == BSM2m || optr->type == BSM2b || optr->type == BSM2f ) {
     optr->no_flavours = 2;
     g_running_phmc = 1;
   }
@@ -217,7 +218,7 @@ int init_operators() {
         optr->even_odd_flag = 1;
         optr->applyDbQsq = &Qtm_pm_ndpsi;
       }
-      else if(optr->type == BSM || optr->type == BSM2b || optr->type == BSM2m ) {
+      else if(optr->type == BSM || optr->type == BSM2b || optr->type == BSM2m || optr->type== BSM2f ) {
         // For the BSM operator we don't use kappa normalisation,
         // as a result, when twisted boundary conditions are applied this needs to be unity.
         // In addition, unlike in the Wilson case, the hopping term comes with a plus sign.
@@ -238,6 +239,10 @@ int init_operators() {
           optr->applyMbi    = &D_psi_BSM2m;
           optr->applyMdagbi = &D_psi_dagger_BSM2m;
           optr->applyQsqbi  = &Q2_psi_BSM2m;
+        } else if( optr->type == BSM2f ){
+          optr->applyMbi    = &D_psi_BSM2f;
+          optr->applyMdagbi = &D_psi_dagger_BSM2f;
+          optr->applyQsqbi  = &Q2_psi_BSM2f;
         }
         // generate space for 4
         int j = init_scalar_field(VOLUMEPLUSRAND, 4);
@@ -460,7 +465,7 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
 
     if(write_prop) optr->write_prop(op_id, index_start, 0);
   }
-  else if( optr->type == BSM || optr->type == BSM2b || optr->type == BSM2m ) {
+  else if( optr->type == BSM || optr->type == BSM2b || optr->type == BSM2m || optr->type == BSM2f ) {
     for(i = 0; i < SourceInfo.no_flavours; i++) {
 
       convert_eo_to_lexic(g_spinor_field[DUM_DERI], optr->sr0, optr->sr1);

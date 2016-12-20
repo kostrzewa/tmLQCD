@@ -49,6 +49,9 @@ void unit_spinor_field(const int k);
 void zero_spinor_field(spinor * const k, const int N);
 void constant_spinor_field(spinor * const k, const int p, const int N);
 
+void unit_spinor_field_lexic(spinor * const k);
+
+
 void random_spinor_field_lexic(spinor * const k, const int repro, const enum RN_TYPE rn_type);
 void random_spinor_field_eo(spinor * const k, const int repro, const enum RN_TYPE rn_type);
 
