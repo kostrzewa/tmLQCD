@@ -130,6 +130,10 @@ int invert_clover_eo(spinor * const Even_new, spinor * const Odd_new,
 			                     VOLUME/2, &Qsw_pm_psi, &Qsw_pm_psi_32);
       Qm(Odd_new, Odd_new);
     }
+    else if(solver_flag == BICGSTABELL){
+      iter = bicgstabell(Odd_new, g_spinor_field[DUM_DERI], max_iter, precision, rel_prec,
+			                     gmres_m_parameter, VOLUME/2, &Msw_plus_psi);
+    }
     else{
       if(g_proc_id == 0) {printf("# This solver is not available for this operator. Exisiting!\n"); fflush(stdout);}
       return 0;

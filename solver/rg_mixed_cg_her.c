@@ -235,7 +235,7 @@ int rg_mixed_cg_her(spinor * const P, spinor * const Q, solver_params_t solver_p
  
   // compute maximum expected number of outer iterations based on expected reduction 
   // of the residual at each run of the inner solver
-  int N_outer = (int)ceil(log10( sourcesquarenorm*delta/target_eps_sq ));
+  int N_outer = 50 + (int)ceil(log10( sourcesquarenorm*delta/target_eps_sq ));
   if(g_debug_level > 0 && g_proc_id==0) 
     printf("#RG_Mixed CG: N_outer: %d \n", N_outer);
   

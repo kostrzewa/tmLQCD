@@ -1103,6 +1103,11 @@ static inline void rmQuotes(char *str){
     if(myverbose) printf("  Solver set to BiCGstab line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
+  bicgstabell {
+    optr->solver=BICGSTABELL;
+    if(myverbose) printf("  Solver set to BiCGstab-L line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
   bicg {
     optr->solver=BICG;
     if(myverbose) printf("  Solver set to BiCG line %d operator %d\n", line_of_file, current_operator);
@@ -1209,6 +1214,11 @@ static inline void rmQuotes(char *str){
   mixedcg {
     optr->solver=MIXEDCG;
     if(myverbose) printf("  Solver set to MixedCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  bicgstabell {
+    optr->solver=BICGSTABELL;
+    if(myverbose) printf("  Solver set to BiCGstab-L line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   DDalphaAMG {
@@ -1696,6 +1706,11 @@ static inline void rmQuotes(char *str){
     if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
     mnl->solver = BICGSTAB;
     BEGIN(solver_caller);
+  }
+  bicgstabell {
+    optr->solver=BICGSTABELL;
+    if(myverbose) printf("  Solver set to BiCGstab-L line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
   }
   DDalphaAMG {
     if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);

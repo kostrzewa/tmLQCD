@@ -160,6 +160,12 @@ int invert_eo(spinor * const Even_new, spinor * const Odd_new,
       mul_one_pm_imu_inv(g_spinor_field[DUM_DERI], +1., VOLUME/2); 
       iter = bicgstab_complex(Odd_new, g_spinor_field[DUM_DERI], max_iter, precision, rel_prec, VOLUME/2, &Mtm_plus_sym_psi);
     }
+    if(solver_flag == BICGSTABELL) {
+      if(g_proc_id == 0) {printf("# Using BiCGstab!\n"); fflush(stdout);}
+      mul_one_pm_imu_inv(g_spinor_field[DUM_DERI], +1., VOLUME/2);
+      // abuse gmres_m_parameter for BiCGstab-L "L" parameter
+      iter = bicgstabell(Odd_new, g_spinor_field[DUM_DERI], max_iter, precision, rel_prec, gmres_m_parameter, VOLUME/2,  &Mtm_plus_sym_psi);
+    }
     else if(solver_flag == BICG) {
       if(g_proc_id == 0) {printf("# Using BiCG!\n"); fflush(stdout);}
       mul_one_pm_imu_inv(g_spinor_field[DUM_DERI], +1., VOLUME/2);

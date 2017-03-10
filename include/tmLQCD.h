@@ -33,7 +33,14 @@
 extern "C"
 {
 #endif /* __cplusplus */
-  
+
+#include "solver/solver_field.h"
+#include "linalg/convert_eo_to_lexic.h"
+#include "source_generation.h"
+#include "global.h"
+#include "start.h"
+#include "io/spinor.h"                                                                                                                                                              
+
   typedef struct {
     unsigned int LX, LY, LZ, T, nstore, nsave, no_operators;
   } tmLQCD_lat_params;

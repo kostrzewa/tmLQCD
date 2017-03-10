@@ -86,6 +86,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "read_input.h"
 #include "boundary.h"
 #include "linalg/convert_eo_to_lexic.h"
 #include "linalg/mul_r.h"
@@ -207,7 +208,8 @@ void _initQuda() {
   // require both L2 relative and heavy quark residual to determine convergence
 //  inv_param.residual_type = (QudaResidualType)(QUDA_L2_RELATIVE_RESIDUAL | QUDA_HEAVY_QUARK_RESIDUAL);
   inv_param.tol_hq = 1.0;//1e-3; // specify a tolerance for the residual for heavy quark residual
-  inv_param.reliable_delta = 1e-2; // ignored by multi-shift solver
+  inv_param.reliable_delta = 1e-1; // ignored by multi-shift solver
+  inv_param.use_sloppy_partial_accumulator = 0;
 
   // domain decomposition preconditioner parameters
   inv_param.inv_type_precondition = QUDA_CG_INVERTER;
@@ -431,7 +433,7 @@ void reorder_spinor_fromQuda( double* sp, QudaPrecision precision, int doublet, 
   double startTime = gettime();
 
   if( doublet ) {
-    memcpy( tempSpinor, sp, 2*VOLUME*24*sizeof(double) ); // FIXME BK: I think this is wrong (why is there sp2?)
+    memcpy( tempSpinor, sp, 2*VOLUME*24*sizeof(double) );
   }
   else {
     memcpy( tempSpinor, sp, VOLUME*24*sizeof(double) );
@@ -549,6 +551,8 @@ int invert_quda_direct(double * const propagator, double * const source,
 
   // set the sloppy precision of the mixed prec solver
   set_sloppy_prec(optr->sloppy_precision);
+    
+  inv_param.Ls = 1;
 
   // choose dslash type
   if( optr->mu != 0.0 && optr->c_sw > 0.0 ) {
@@ -558,13 +562,19 @@ int invert_quda_direct(double * const propagator, double * const source,
     inv_param.clover_order = QUDA_PACKED_CLOVER_ORDER;
     inv_param.mu = fabs(optr->mu/2./optr->kappa);
     inv_param.clover_coeff = optr->c_sw*optr->kappa;
-
+    // IMPORTANT: use opposite TM flavor since gamma5 -> -gamma5 (until LXLYLZT prob. resolved)
+    inv_param.twist_flavor = QUDA_TWIST_SINGLET;
+    inv_param.mu = -optr->mu/2./optr->kappa;
+    inv_param.compute_clover_inverse = 1;
+    inv_param.compute_clover = 1;
   }
   else if( optr->mu != 0.0 ) {
     inv_param.dslash_type = QUDA_TWISTED_MASS_DSLASH;
     inv_param.matpc_type = QUDA_MATPC_EVEN_EVEN_ASYMMETRIC;
     inv_param.solution_type = QUDA_MAT_SOLUTION;
-    inv_param.mu = fabs(optr->mu/2./optr->kappa);
+    // IMPORTANT: use opposite TM flavor since gamma5 -> -gamma5 (until LXLYLZT prob. resolved)
+    inv_param.twist_flavor = QUDA_TWIST_SINGLET;
+    inv_param.mu = -optr->mu/2./optr->kappa;
   }
   else if( optr->c_sw > 0.0 ) {
     inv_param.dslash_type = QUDA_CLOVER_WILSON_DSLASH;
@@ -572,6 +582,8 @@ int invert_quda_direct(double * const propagator, double * const source,
     inv_param.solution_type = QUDA_MAT_SOLUTION;
     inv_param.clover_order = QUDA_PACKED_CLOVER_ORDER;
     inv_param.clover_coeff = optr->c_sw*optr->kappa;
+    inv_param.compute_clover_inverse = 1;
+    inv_param.compute_clover = 1;
   }
   else {
     inv_param.dslash_type = QUDA_WILSON_DSLASH;
@@ -583,6 +595,12 @@ int invert_quda_direct(double * const propagator, double * const source,
   if(optr->solver == BICGSTAB) {
     if(g_proc_id == 0) {printf("# QUDA: Using BiCGstab!\n"); fflush(stdout);}
     inv_param.inv_type = QUDA_BICGSTAB_INVERTER;
+  }
+  else if(optr->solver == BICGSTABELL) {
+    if(g_proc_id == 0) {printf("# QUDA: Using BiCGstab-L!\n"); fflush(stdout);}
+    // misuse gmres_m_parameter for L and set gcrnkrylov, which is misused in QUDA for L
+    inv_param.gcrNkrylov = gmres_m_parameter;
+    inv_param.inv_type = QUDA_BICGSTABL_INVERTER;
   }
   else {
     /* Here we invert the hermitean operator squared */
@@ -619,10 +637,6 @@ int invert_quda_direct(double * const propagator, double * const source,
   inv_param.tol = sqrt(optr->eps_sq);
   inv_param.maxiter = optr->maxiter;
 
-  // IMPORTANT: use opposite TM flavor since gamma5 -> -gamma5 (until LXLYLZT prob. resolved)
-  inv_param.twist_flavor = (optr->mu < 0.0 ? QUDA_TWIST_PLUS : QUDA_TWIST_MINUS);
-  inv_param.Ls = 1;
-  
   // load gauge after setting precision
   if(loadGauge == 1){
     atime = gettime();
@@ -704,6 +718,7 @@ int invert_eo_quda(spinor * const Even_new, spinor * const Odd_new,
     inv_param.residual_type = QUDA_L2_ABSOLUTE_RESIDUAL;
 
   inv_param.kappa = g_kappa;
+  //inv_param.mass = 1/(2*g_kappa)-4.0;
 
   // figure out which BC to use (theta, trivial...)
   set_boundary_conditions(&compression);
@@ -713,6 +728,8 @@ int invert_eo_quda(spinor * const Even_new, spinor * const Odd_new,
 
   // load gauge after setting precision
   _loadGaugeQuda(compression);
+  
+  inv_param.Ls = 1;
 
   // choose dslash type
   if( g_mu != 0.0 && g_c_sw > 0.0 ) {
@@ -720,15 +737,20 @@ int invert_eo_quda(spinor * const Even_new, spinor * const Odd_new,
     inv_param.matpc_type = QUDA_MATPC_EVEN_EVEN;
     inv_param.solution_type = QUDA_MAT_SOLUTION;
     inv_param.clover_order = QUDA_PACKED_CLOVER_ORDER;
-    inv_param.mu = fabs(g_mu/2./g_kappa);
     inv_param.clover_coeff = g_c_sw*g_kappa;
-
+    // use opposite flavor (mu -> -mu) because gamma_5 -> -gamma_5
+    inv_param.twist_flavor = QUDA_TWIST_SINGLET;
+    inv_param.mu = -g_mu/2./g_kappa;
+    inv_param.compute_clover_inverse = 1;
+    inv_param.compute_clover = 1;
   }
   else if( g_mu != 0.0 ) {
     inv_param.dslash_type = QUDA_TWISTED_MASS_DSLASH;
     inv_param.matpc_type = QUDA_MATPC_EVEN_EVEN_ASYMMETRIC;
     inv_param.solution_type = QUDA_MAT_SOLUTION;
-    inv_param.mu = fabs(g_mu/2./g_kappa);
+    // use opposite flavor (mu -> -mu) because gamma_5 -> -gamma_5
+    inv_param.twist_flavor = QUDA_TWIST_SINGLET;
+    inv_param.mu = -g_mu/2./g_kappa;
   }
   else if( g_c_sw > 0.0 ) {
     inv_param.dslash_type = QUDA_CLOVER_WILSON_DSLASH;
@@ -736,6 +758,8 @@ int invert_eo_quda(spinor * const Even_new, spinor * const Odd_new,
     inv_param.solution_type = QUDA_MAT_SOLUTION;
     inv_param.clover_order = QUDA_PACKED_CLOVER_ORDER;
     inv_param.clover_coeff = g_c_sw*g_kappa;
+    inv_param.compute_clover_inverse = 1;
+    inv_param.compute_clover = 1;
   }
   else {
     inv_param.dslash_type = QUDA_WILSON_DSLASH;
@@ -747,6 +771,12 @@ int invert_eo_quda(spinor * const Even_new, spinor * const Odd_new,
   if(solver_flag == BICGSTAB) {
     if(g_proc_id == 0) {printf("# QUDA: Using BiCGstab!\n"); fflush(stdout);}
     inv_param.inv_type = QUDA_BICGSTAB_INVERTER;
+  }
+  if(solver_flag == BICGSTABELL) {
+    if(g_proc_id == 0) {printf("# QUDA: Using BiCGstab!\n"); fflush(stdout);}
+    // misuse gmres_m_parameter for L and set gcrnkrylov, which is misused in QUDA for L
+    inv_param.gcrNkrylov = gmres_m_parameter;
+    inv_param.inv_type = QUDA_BICGSTABL_INVERTER;
   }
   else {
     /* Here we invert the hermitean operator squared */
@@ -782,10 +812,6 @@ int invert_eo_quda(spinor * const Even_new, spinor * const Odd_new,
 
   inv_param.tol = sqrt(precision);
   inv_param.maxiter = max_iter;
-
-  // IMPORTANT: use opposite TM flavor since gamma5 -> -gamma5 (until LXLYLZT prob. resolved)
-  inv_param.twist_flavor = (g_mu < 0.0 ? QUDA_TWIST_PLUS : QUDA_TWIST_MINUS);
-  inv_param.Ls = 1;
 
   // NULL pointers to host fields to force
   // construction instead of download of the clover field:
@@ -841,7 +867,6 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
 
   convert_eo_to_lexic(solver_field[0],   Even_s,  Odd_s);
   convert_eo_to_lexic(solver_field[1],   Even_c,  Odd_c);
-//  convert_eo_to_lexic(g_spinor_field[DUM_DERI+1], Even_new, Odd_new);
 
   void *spinorIn    = (void*)solver_field[0]; // source
   void *spinorIn_c  = (void*)solver_field[1]; // charme source
@@ -859,7 +884,6 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
   inv_param.mu      = -g_mubar /2./g_kappa;
   inv_param.epsilon =  g_epsbar/2./g_kappa;
 
-
   // figure out which BC to use (theta, trivial...)
   set_boundary_conditions(&compression);
 
@@ -869,6 +893,9 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
   // load gauge after setting precision
    _loadGaugeQuda(compression);
 
+  inv_param.twist_flavor = QUDA_TWIST_NONDEG_DOUBLET;
+  inv_param.Ls = 2;
+
   // choose dslash type
   if( g_c_sw > 0.0 ) {
     inv_param.dslash_type = QUDA_TWISTED_CLOVER_DSLASH;
@@ -876,6 +903,8 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
     inv_param.solution_type = QUDA_MAT_SOLUTION;
     inv_param.clover_order = QUDA_PACKED_CLOVER_ORDER;
     inv_param.clover_coeff = g_c_sw*g_kappa;
+    inv_param.compute_clover_inverse = 1;
+    inv_param.compute_clover = 1;
   }
   else {
     inv_param.dslash_type = QUDA_TWISTED_MASS_DSLASH;
@@ -886,7 +915,13 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
   // choose solver
   if(solver_flag == BICGSTAB) {
     if(g_proc_id == 0) {printf("# QUDA: Using BiCGstab!\n"); fflush(stdout);}
+    printf("# QUDA: mu = %.12f, kappa = %.12f\n", g_mu/2./g_kappa, g_kappa);
     inv_param.inv_type = QUDA_BICGSTAB_INVERTER;
+  }
+  if(solver_flag == BICGSTABELL) {
+    if(g_proc_id == 0) {printf("# QUDA: Using BiCGstab!\n"); fflush(stdout);}
+    printf("# QUDA: mu = %.12f, kappa = %.12f\n", g_mu/2./g_kappa, g_kappa);
+    inv_param.inv_type = QUDA_BICGSTABL_INVERTER;
   }
   else {
     /* Here we invert the hermitean operator squared */
@@ -909,9 +944,6 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
 
   inv_param.tol = sqrt(precision);
   inv_param.maxiter = max_iter;
-
-  inv_param.twist_flavor = QUDA_TWIST_NONDEG_DOUBLET;
-  inv_param.Ls = 2;
 
   // NULL pointers to host fields to force
   // construction instead of download of the clover field:
@@ -957,13 +989,13 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
 // if even_odd_flag set
 void M_full_quda(spinor * const Even_new, spinor * const Odd_new,  spinor * const Even, spinor * const Odd) {
   inv_param.kappa = g_kappa;
-  inv_param.mu = fabs(g_mu);
+  inv_param.mu = -g_mu;
   inv_param.epsilon = 0.0;
 
   // IMPORTANT: use opposite TM flavor since gamma5 -> -gamma5 (until LXLYLZT prob. resolved)
-  inv_param.twist_flavor = (g_mu < 0.0 ? QUDA_TWIST_PLUS : QUDA_TWIST_MINUS);
-  inv_param.Ls = (inv_param.twist_flavor == QUDA_TWIST_NONDEG_DOUBLET ||
-       inv_param.twist_flavor == QUDA_TWIST_DEG_DOUBLET ) ? 2 : 1;
+  inv_param.twist_flavor = QUDA_TWIST_SINGLET;//(g_mu < 0.0 ? QUDA_TWIST_PLUS : QUDA_TWIST_MINUS);
+  inv_param.Ls = 1;//(inv_param.twist_flavor == QUDA_TWIST_NONDEG_DOUBLET ||
+       //inv_param.twist_flavor == QUDA_TWIST_DEG_DOUBLET ) ? 2 : 1;
 
   void *spinorIn  = (void*)g_spinor_field[DUM_DERI];   // source
   void *spinorOut = (void*)g_spinor_field[DUM_DERI+1]; // solution
@@ -981,6 +1013,12 @@ void M_full_quda(spinor * const Even_new, spinor * const Odd_new,  spinor * cons
   convert_lexic_to_eo( Even_new, Odd_new, spinorOut );
 }
 
+void M_doublet_full_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
+                         spinor * const Even_new_c, spinor * const Odd_new_c,
+                         spinor * const Even_s, spinor * const Odd_s,
+                         spinor * const Even_c, spinor * const Odd_c){
+}
+
 // no even-odd
 void D_psi_quda(spinor * const P, spinor * const Q) {
   inv_param.kappa = g_kappa;
@@ -988,9 +1026,10 @@ void D_psi_quda(spinor * const P, spinor * const Q) {
   inv_param.epsilon = 0.0;
 
   // IMPORTANT: use opposite TM flavor since gamma5 -> -gamma5 (until LXLYLZT prob. resolved)
-  inv_param.twist_flavor = (g_mu < 0.0 ? QUDA_TWIST_PLUS : QUDA_TWIST_MINUS);
-  inv_param.Ls = (inv_param.twist_flavor == QUDA_TWIST_NONDEG_DOUBLET ||
-       inv_param.twist_flavor == QUDA_TWIST_DEG_DOUBLET ) ? 2 : 1;
+  inv_param.twist_flavor = QUDA_TWIST_SINGLET;//(g_mu < 0.0 ? QUDA_TWIST_PLUS : QUDA_TWIST_MINUS);
+  inv_param.mu = -g_mu;
+  inv_param.Ls = 1; //(inv_param.twist_flavor == QUDA_TWIST_NONDEG_DOUBLET ||
+       //inv_param.twist_flavor == QUDA_TWIST_DEG_DOUBLET ) ? 2 : 1;
 
   void *spinorIn  = (void*)Q;
   void *spinorOut = (void*)P;
@@ -1005,5 +1044,9 @@ void D_psi_quda(spinor * const P, spinor * const Q) {
   // reorder spinor
   reorder_spinor_fromQuda( (double*)spinorIn,  inv_param.cpu_prec, 0, NULL );
   reorder_spinor_fromQuda( (double*)spinorOut, inv_param.cpu_prec, 0, NULL );
+}
+
+void D_doublet_psi_quda(spinor * const P_s, spinor * const P_c,
+                        spinor * const Q_s, spinor * const Q_c){
 }
 
