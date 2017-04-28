@@ -86,11 +86,12 @@ extern "C" {
 using namespace std;
 using namespace QPhiX;
 
+// this should be defined in <qphix/qphix_config_internal.h> which is included in <qphix/qphix_config.h>
 #ifndef QPHIX_SOALEN
 #define QPHIX_SOALEN 8
 #endif
 
-#if defined(QPHIX_MIC_SOURCE)
+#if ( defined(QPHIX_MIC_SOURCE) || defined(QPHIX_AVX512_SOURCE) )
 #define VECLEN_SP 16
 #define VECLEN_HP 16
 #define VECLEN_DP 8
