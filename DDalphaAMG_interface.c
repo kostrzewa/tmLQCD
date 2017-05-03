@@ -703,8 +703,11 @@ static int MG_mms_solve_nd( spinor **const up_new, spinor **const dn_new,
     mul_gamma5((spinor *const) old1, VOLUME);
     mul_gamma5((spinor *const) old2, VOLUME);
     // tau1 exchange new1 <-> new2
+    double* tols = malloc(no_shifts*sizeof(double));
+    for(int i = 0; i < no_shifts; ++i) tols[i] = precision;
     DDalphaAMG_solve_ms_doublet( new2, old1, new1, old2, mg_even_shifts, mg_odd_shifts, no_shifts, 
-                                 precision, &mg_status );
+                                 tols, &mg_status );
+    free(tols);
     if( N == VOLUME ) { // in case of VOLUME/2 old is a just local vector
       mul_gamma5((spinor *const) old1, VOLUME);
       mul_gamma5((spinor *const) old2, VOLUME);
@@ -713,14 +716,21 @@ static int MG_mms_solve_nd( spinor **const up_new, spinor **const dn_new,
   else if ( f == Qtm_pm_ndpsi_shift ||  // (Gamma5 Dh)^2 - Schur complement squared with csw = 0 and shift
 	    f == Qsw_pm_ndpsi_shift ) { // (Gamma5 Dh)^2 - Schur complement squared with shift
     mg_scale *= mg_scale;
+    double* tols = malloc(no_shifts*sizeof(double));
+    for(int i = 0; i < no_shifts; ++i) tols[i] = precision;
     // DDalphaAMG: tau1 gamma5 Dh tau1 gamma5 Dh
     // tmLQCD:          gamma5 Dh tau1 gamma5 Dh tau1
     DDalphaAMG_solve_ms_doublet_squared_odd( new2, old2, new1, old1, mg_even_shifts, mg_odd_shifts, no_shifts,
-                                             precision, &mg_status );
+                                             tols, &mg_status );
+    free(tols);
   }
-  else
+  else {
+    double* tols = malloc(no_shifts*sizeof(double));
+    for(int i = 0; i < no_shifts; ++i) tols[i] = precision;
     DDalphaAMG_solve_ms_doublet( new1, old1, new2, old2, mg_even_shifts, mg_odd_shifts, no_shifts, 
-                                 precision, &mg_status );
+                                 tols, &mg_status );
+    free(tols);
+  }
 
   if (N==VOLUME/2) {
     for( int i = 0; i < no_shifts; i++ ) {
