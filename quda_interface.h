@@ -86,6 +86,33 @@
 #include "su3.h"
 #include "solver/solver_params.h"
 
+typedef struct Quda_mg_params_t{
+  int nlevel;
+  int nvec;
+  int blocksize[4][4];
+  int nu_pre;
+  int nu_post;
+  char mg_verbosity[4][100];
+  char setup_inv[4][100];//inverter for setting the null space: BICGSTAB usually
+  double setup_tol;
+  double omega;
+  char smoother_type[100];//The same on each level, on the coarsest level it has to be the smoother
+  double smoother_tol;
+  double mufactor[4];
+} Quda_mg_params_t;
+
+typedef struct Quda_invert_params_t {
+  char inv_verbosity[100];
+  char inv_verbosity_preconditioner[100];
+  char inv_type_precondition[100];
+  double tol;
+  int gcrnkrylov;
+  int maxiter;
+  double reliable_delta;
+  int maxiter_precondition;
+  double tolprecondition;
+  double omega;
+} Quda_invert_params_t;
 
 // wrapper functions
 void _initQuda();

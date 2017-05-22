@@ -61,9 +61,10 @@ EQL {SPC}*={SPC}*
 #include"meas/measurements.h"
 #include"integrator.h"
 #include"operator.h"
+#include"quda_interface.h"
 #include"phmc.h"
 #include<io/params.h>
-
+#define QUDA_MAX_MG_LEVEL 5
 static inline void rmQuotes(char *str){
   char* strsave=str;
 
@@ -191,6 +192,15 @@ static inline void rmQuotes(char *str){
   int use_preconditioning;
   
   int use_qudainverter;
+
+  #ifdef QUDA
+  extern Quda_mg_params_t Quda_multigrid_input;
+  extern Quda_invert_params_t Quda_invert_input;
+#else
+  Quda_mg_params_t Quda_multigrid_input;
+  Quda_invert_params_t Quda_invert_invert;
+#endif
+
 
 %}
 
@@ -1205,6 +1215,277 @@ static inline void rmQuotes(char *str){
   }
 }
 <QUDAINVERTER>{
+  {SPC}*QUDAMGNlevel{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_multigrid_input.nlevel = a;
+    if(myverbose) printf("  QUDAMG Number of levels  set to %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGNvec{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_multigrid_input.nvec = a;
+    if(myverbose) printf("  QUDAMG Number of testvectors set to %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGBlocksizeX{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    int bsize;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%d",&bsize);
+        Quda_multigrid_input.blocksize[0][numlevels] = bsize;
+        if(myverbose) printf("  Bsize in direction X on level  %d is = %d added line %d operator %d\n",numlevels,bsize,line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read bsize-s is direction x  input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any blocksize-s in direction x!");
+    } else {
+      if(myverbose) printf("  QUDAMG read blocksizes in direction x for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAMGBlocksizeY{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    int bsize;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%d",&bsize);
+        Quda_multigrid_input.blocksize[1][numlevels] = bsize;
+        if(myverbose) printf("  Blocksize in direction Y on level  %d is = %d added line %d operator %d\n",numlevels,bsize,line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read bsize-s is direction y  input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any bsize-s in direction y!");
+    } else {
+      if(myverbose) printf("  QUDAMG read bsizes in direction y for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAMGBlocksizeZ{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    int bsize;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%d",&bsize);
+        Quda_multigrid_input.blocksize[2][numlevels] = bsize;
+        if(myverbose) printf("  Blocksize in direction Z on level  %d is = %d added line %d operator %d\n",numlevels,bsize,line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read blocksize-s is direction z  input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any blocksize-s in direction z!");
+    } else {
+      if(myverbose) printf("  QUDAMG read blocksizes in direction z for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAMGBlocksizeT{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    int bsize;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%d",&bsize);
+        Quda_multigrid_input.blocksize[3][numlevels] = bsize;
+        if(myverbose) printf("  Blocksize in direction T on level  %d is = %d added line %d operator %d\n",numlevels,bsize,line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read blocksize-s is direction t  input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any blocksize-s in direction x!");
+    } else {
+      if(myverbose) printf("  QUDAMG read blocksizes in direction t for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAMGNpresmooth{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_multigrid_input.nu_pre = a;
+    if(myverbose) printf("  QUDAMG Number of presmoothing steps  set to %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGNpostsmooth{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_multigrid_input.nu_post = a;
+    if(myverbose) printf("  QUDAMG Number of postsmoothing steps  set to %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGVerbosity{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%d",Quda_multigrid_input.mg_verbosity[numlevels]);
+        if(myverbose) printf("  QUDAMG Verbosity on level  %d is = %s added line %d operator %d\n",numlevels,Quda_multigrid_input.mg_verbosity[numlevels],line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read Verbosity input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any Verbosity!");
+    } else {
+      if(myverbose) printf("  QUDAMG read Verbosities in for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAMGSetupInverter{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%s",&Quda_multigrid_input.setup_inv[numlevels]);
+        if(myverbose) printf("  QUDAMG Setup Inverter on level  %d is = %s added line %d operator %d\n",numlevels,Quda_multigrid_input.setup_inv[numlevels],line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read Setup Inverter  input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any Setup Inverter!");
+    } else {
+      if(myverbose) printf("  QUDAMG read Setup Inverters in for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAMGSetupTolerance{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    Quda_multigrid_input.setup_tol= c;
+    if(myverbose) printf("  QUDAMG Setup tolerance is %lf line %d operator %d\n", c, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGOmega{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    Quda_multigrid_input.omega= c;
+    if(myverbose) printf("  QUDAMG Omega is  %lf line %d operator %d\n", c, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGSmoother{EQL}{NAME} {
+    if(myverbose) printf("  QUDAMG Smmoother name  \"%s\" line %d monomial %d\n", yytext, line_of_file, current_operator);
+    strcpy(&Quda_multigrid_input.smoother_type, yytext);
+  }
+  {SPC}*QUDAMGSmoothertol{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    Quda_multigrid_input.smoother_tol= c;
+    if(myverbose) printf("  QUDAMG Smoother tolerance is  %lf line %d operator %d\n", c, line_of_file, current_operator);
+  }
+  {SPC}*QUDAMGMufactors{EQL}{FLTLIST} {
+    char * token = NULL;
+    int numlevels=0;
+    if( strtok(yytext,"\n\t =,\\") != NULL ) {
+       /* Implicitly drop the first token, it is "ExtraMasses" */
+      token = strtok(NULL," =,\t");
+
+      while( token != NULL ) {
+        if( numlevels >= QUDA_MAX_MG_LEVEL ) {
+          yy_fatal_error("  Maximum number of levels are reached. QUDA_MAX_MG_LEVEL" );
+        }
+        sscanf(token,"%lf",&Quda_multigrid_input.mufactor[numlevels]);
+        if(myverbose) printf("  QUDAMG Mu factors on level  %d is = %lf added line %d operator %d\n",numlevels,Quda_multigrid_input.mufactor[numlevels],line_of_file,current_operator);
+        ++numlevels;
+        token = strtok(NULL," =,\t");
+      }
+    } else {
+      yy_fatal_error("  QUDAMG Failed to read MU factors  input line in configuration file!");
+    }
+
+    if( numlevels == 0 ) {
+      yy_fatal_error("  QUDAMG Failed to read any MU factors!");
+    } else {
+      if(myverbose) printf("  QUDAMG read Mu factors in for %d levels line %d operator %d\n",numlevels,line_of_file,current_operator);
+    }
+  }
+  {SPC}*QUDAInvertverbosity{EQL}{NAME} {
+    if(myverbose) printf("  QUDAInvert Verbosity set to  \"%s\" line %d monomial %d\n", yytext, line_of_file, current_operator);
+    strcpy(&Quda_invert_input.inv_verbosity, yytext);
+  }
+  {SPC}*QUDAInvertPreconditionerverbosity{EQL}{NAME} {
+    if(myverbose) printf("  QUDAInvertPrecondition Verbosity set to  \"%s\" line %d monomial %d\n", yytext, line_of_file, current_operator);
+    strcpy(&Quda_invert_input.inv_verbosity_preconditioner, yytext);
+  }
+  {SPC}*QUDAInvertPreconditionType{EQL}{NAME} {
+    if(myverbose) printf("  QUDAInvertPrecondition Type set to  \"%s\" line %d monomial %d\n", yytext, line_of_file, current_operator);
+    strcpy(&Quda_invert_input.inv_type_precondition, yytext);
+  }
+  {SPC}*QUDAInvertTolerance{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    Quda_invert_input.tol= c;
+    if(myverbose) printf("  QUDAInvert Tolerance is  %lf line %d operator %d\n", c, line_of_file, current_operator);
+  }
+  {SPC}*QUDAInvertTolerancePrecondition{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    Quda_invert_input.tolprecondition= c;
+    if(myverbose) printf("  QUDAInvert Tolerance in precondition is %lf line %d operator %d\n", c, line_of_file, current_operator);
+  }
+  {SPC}*QUDAInvertGCRNkrylov{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_invert_input.gcrnkrylov= a;
+    if(myverbose) printf("  QUDAInvert GCR Size of Krylov subspace is  %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAInvertMaxIteration{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_invert_input.maxiter= a;
+    if(myverbose) printf("  QUDAInvert Maximal number of iterations is  %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAInvertMaxIterationPreconditioner{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_invert_input.maxiter_precondition= a;
+    if(myverbose) printf("  QUDAInvert Maximal number of iterations in precondition is  %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*QUDAInvertReliableDelta{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    Quda_invert_input.reliable_delta= a;
+    if(myverbose) printf("  QUDAInvert GCR Size of Krylov subspace is  %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
   ^EndExternalInverter{SPC}*  {
     if(myverbose) printf("QUDA external inverter parameters parsed on line %d\n\n", line_of_file);
     BEGIN(0);
@@ -2595,6 +2876,16 @@ int read_input(char * conf_file){
   g_beta = _default_g_beta;
   g_N_s = _default_g_N_s;
   g_dflgcr_flag = _default_g_dflgcr_flag;
+
+/* Setting the default parameters for QUDA multigrid inverter */
+  Quda_multigrid_input.nlevel=3;
+  Quda_multigrid_input.nvec  =24;
+  Quda_multigrid_input.nu_post =4;
+  Quda_multigrid_input.nu_pre  =4;
+  Quda_multigrid_input.blocksize[0][0]=0;
+  Quda_multigrid_input.smoother_tol=0.1;
+  Quda_multigrid_input.setup_tol=5e-6;
+
 
   Msap_precon = _default_Msap_precon;
   NiterMsap = _default_NiterMsap;

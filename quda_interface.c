@@ -84,6 +84,7 @@
 *
 **************************************************************************/
 
+#include "quda.h"
 #include "quda_interface.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -96,7 +97,6 @@
 #include "solver/solver_field.h"
 #include "gettime.h"
 #include "boundary.h"
-#include "quda.h"
 #include "global.h"
 #include "operator.h"
 
@@ -122,9 +122,74 @@ double X0, X1, X2, X3;
 QudaGaugeParam  gauge_param;
 QudaInvertParam inv_param;
 
+QudaVerbosity get_verbosity_type(char* s)
+{
+  QudaVerbosity ret =  QUDA_INVALID_VERBOSITY;
+
+  if (strcmp(s, "silent") == 0){
+    ret = QUDA_SILENT;
+  }else if (strcmp(s, "summarize") == 0){
+    ret = QUDA_SUMMARIZE;
+  }else if (strcmp(s, "verbose") == 0){
+    ret = QUDA_VERBOSE;
+  }else if (strcmp(s, "debug") == 0){
+    ret = QUDA_DEBUG_VERBOSE;
+  }else{
+    fprintf(stderr, "Error: invalid verbosity type %s\n", s);
+    exit(1);
+  }
+  return ret;
+}
+
+QudaInverterType get_solver_type(char* s)
+{
+  QudaInverterType ret =  QUDA_INVALID_INVERTER;
+
+  if (strcmp(s, "cg") == 0){
+    ret = QUDA_CG_INVERTER;
+  } else if (strcmp(s, "bicgstab") == 0){
+    ret = QUDA_BICGSTAB_INVERTER;
+  } else if (strcmp(s, "gcr") == 0){
+    ret = QUDA_GCR_INVERTER;
+  } else if (strcmp(s, "pcg") == 0){
+    ret = QUDA_PCG_INVERTER;
+  } else if (strcmp(s, "mpcg") == 0){
+    ret = QUDA_MPCG_INVERTER;
+  } else if (strcmp(s, "mpbicgstab") == 0){
+    ret = QUDA_MPBICGSTAB_INVERTER;
+  } else if (strcmp(s, "mr") == 0){
+    ret = QUDA_MR_INVERTER;
+  } else if (strcmp(s, "sd") == 0){
+    ret = QUDA_SD_INVERTER;
+  } else if (strcmp(s, "eigcg") == 0){
+    ret = QUDA_EIGCG_INVERTER;
+  } else if (strcmp(s, "inc-eigcg") == 0){
+    ret = QUDA_INC_EIGCG_INVERTER;
+  } else if (strcmp(s, "gmresdr") == 0){
+    ret = QUDA_GMRESDR_INVERTER;
+  } else if (strcmp(s, "gmresdr-proj") == 0){
+    ret = QUDA_GMRESDR_PROJ_INVERTER;
+  } else if (strcmp(s, "gmresdr-sh") == 0){
+    ret = QUDA_GMRESDR_SH_INVERTER;
+  } else if (strcmp(s, "fgmresdr") == 0){
+    ret = QUDA_FGMRESDR_INVERTER;
+  } else if (strcmp(s, "mg") == 0){
+    ret = QUDA_MG_INVERTER;
+  } else if (strcmp(s, "bicgstab-l") == 0){
+    ret = QUDA_BICGSTABL_INVERTER;
+  } else {
+    fprintf(stderr, "Error: invalid solver type\n");
+    exit(1);
+  }
+
+  return ret;
+}
+
+
 // FIXME: params to pass to MG
 QudaInvertParam inv_mg_param;
-
+Quda_mg_params_t Quda_multigrid_input;
+Quda_invert_params_t Quda_invert_input;
 // pointer to the QUDA gaugefield
 double *gauge_quda[4];
 
@@ -204,6 +269,7 @@ void _initQuda() {
   gauge_param.cuda_prec_precondition = cuda_prec_precondition;
   gauge_param.reconstruct_precondition = 18;
   gauge_param.gauge_fix = QUDA_GAUGE_FIXED_NO;
+  
 
   inv_param.dagger = QUDA_DAG_NO;
   inv_param.mass_normalization = QUDA_KAPPA_NORMALIZATION;
@@ -982,6 +1048,7 @@ int invert_doublet_eo_quda(spinor * const Even_new_s, spinor * const Odd_new_s,
     inv_param.solve_type = QUDA_NORMERR_SOLVE;
     if(g_proc_id == 0) printf("# QUDA: Not using preconditioning!\n");
   }
+  inv_param.verbosity= get_verbosity_type(Quda_invert_input.inv_verbosity);
 
   inv_param.tol = sqrt(precision);
   inv_param.maxiter = max_iter;
@@ -1114,34 +1181,112 @@ void _setMultigridParam(QudaMultigridParam* mg_param) {
   }
 
   // FIXME: allow these parameters to be adjusted
-  mg_param->n_level = 3;
-  for (int i=0; i<mg_param->n_level; i++) {
-    for (int j=0; j<QUDA_MAX_DIM; j++) {
+  if (Quda_multigrid_input.nlevel > QUDA_MAX_MG_LEVEL ){
+    if (g_cart_id == 0) {printf("Error in number of levels in QUDA MG %d\n", Quda_multigrid_input.nlevel );
+                         printf("It exceeds the maximal number of levels\n");
+                         fflush(stdout);
+                         exit(1);
+                        }
+  }
+  mg_param->n_level = Quda_multigrid_input.nlevel;
+  if (Quda_multigrid_input.blocksize[0][0] != 0){
+      unsigned int extent=1;
+      for (int i=0; i<mg_param->n_level; i++){
+        extent*=Quda_multigrid_input.blocksize[0][i];
+      }
+      if (extent != LX){
+        if (g_cart_id == 0) { printf("Error in input for block sizes in direction x\n");
+                              fflush(stdout);
+                              exit(1);
+                            }
+      }
+      for (int i=0; i<mg_param->n_level; i++){
+        mg_param->geo_block_size[i][0]=Quda_multigrid_input.blocksize[0][i];
+      }
+      extent=1;
+      for (int i=0; i<mg_param->n_level; i++){
+        extent*=Quda_multigrid_input.blocksize[1][i];
+      }
+      if (extent != LY){
+        if (g_cart_id == 0) { printf("Error in input for block sizes in direction y\n");
+                              fflush(stdout);
+                              exit(1);
+                            }
+      }
+      for (int i=0; i<mg_param->n_level; i++){
+        mg_param->geo_block_size[i][1]=Quda_multigrid_input.blocksize[1][i];
+      }
+      extent=1;
+      for (int i=0; i<mg_param->n_level; i++){
+        extent*=Quda_multigrid_input.blocksize[2][i];
+      }
+      if (extent != LZ){
+        if (g_cart_id == 0) { printf("Error in input for block sizes in direction z\n");
+                              fflush(stdout);
+                              exit(1);
+                            }
+      }
+      for (int i=0; i<mg_param->n_level; i++){
+        mg_param->geo_block_size[i][2]=Quda_multigrid_input.blocksize[2][i];
+      }
+      extent=1;
+      for (int i=0; i<mg_param->n_level; i++){
+        extent*=Quda_multigrid_input.blocksize[3][i];
+      }
+      if (extent != T){
+        if (g_cart_id == 0) { printf("Error in input for block sizes in direction T\n");
+                              fflush(stdout);
+                              exit(1);
+                            }
+      }
+      for (int i=0; i<mg_param->n_level; i++){
+        mg_param->geo_block_size[i][3]=Quda_multigrid_input.blocksize[3][i];
+      }
+  }
+  else{
+    for (int i=0; i<mg_param->n_level; i++) {
+      for (int j=0; j<QUDA_MAX_DIM; j++) {
 
-      unsigned int extent = (j == 4) ? T : LX;
-      // determine how many lattice sites remain at this level
-      for(int k = i; k > 0; k--) extent = extent/mg_param->geo_block_size[k-1][j];
-      unsigned int even_block_size = 4;
-      if(extent < 8) even_block_size = 2;
+        unsigned int extent = (j == 4) ? T : LX;
+        // determine how many lattice sites remain at this level
+        for(int k = i; k > 0; k--) extent = extent/mg_param->geo_block_size[k-1][j];
+        unsigned int even_block_size = 4;
+        if(extent < 8) even_block_size = 2;
 
-      // on the finest level, we use a block size of 4^4
-      // on all other levels, we compute how many blocks there are and use a block size of 3 for
-      // cases divisible by 3, otherwise we use 2
-      // if blocking is not possible, we use block size 1
-      if( extent == 1 ) mg_param->geo_block_size[i][j] = 1;
-      else mg_param->geo_block_size[i][j] = (i == 0) ? 4 : ( (extent % 3 == 0) ? 3 : even_block_size );
+        // on the finest level, we use a block size of 4^4
+        // on all other levels, we compute how many blocks there are and use a block size of 3 for
+        // cases divisible by 3, otherwise we use 2
+        // if blocking is not possible, we use block size 1
+        if( extent == 1 ) mg_param->geo_block_size[i][j] = 1;
+        else mg_param->geo_block_size[i][j] = (i == 0) ? 4 : ( (extent % 3 == 0) ? 3 : even_block_size );
+      }
     }
+  }
+  for (int i=0; i<mg_param->n_level; i++) {
+    mg_param->verbosity[i]= get_verbosity_type(Quda_multigrid_input.mg_verbosity[i]);
+    mg_param->setup_inv_type[i]= get_solver_type(Quda_multigrid_input.setup_inv[i]);
+    mg_param->setup_tol[i] = Quda_multigrid_input.setup_tol;
     mg_param->spin_block_size[i] = 1;
-    mg_param->n_vec[i] = 24;
-    mg_param->nu_pre[i] = 4;
-    mg_param->nu_post[i] = 4;
-
+    mg_param->n_vec[i] = Quda_multigrid_input.nvec;
+    mg_param->nu_pre[i] = Quda_multigrid_input.nu_pre;
+    mg_param->nu_post[i] = Quda_multigrid_input.nu_post;
     mg_param->cycle_type[i] = QUDA_MG_CYCLE_RECURSIVE;
 
-    mg_param->smoother[i] = QUDA_MR_INVERTER;
-
+    mg_param->smoother[i]= get_solver_type(Quda_multigrid_input.smoother_type);
+/*
+    if (strcmp(Quda_multigrid_input.smoother_type,"QUDA_MR_INVERTER") == 0 ) {
+       mg_param->smoother[i] = QUDA_MR_INVERTER;
+    }
+    else{
+       if ( g_cart_id == 0 ){ 
+         printf("For smoother now you should you QUDA_MR_INVERTER\n");
+         fflush(stdout);
+         exit(1);
+       } 
+    }
+*/
     // set the smoother / bottom solver tolerance (for MR smoothing this will be ignored)
-    mg_param->smoother_tol[i] = 0.1; // repurpose heavy-quark tolerance for now
+    mg_param->smoother_tol[i] = Quda_multigrid_input.smoother_tol;//0.1; // repurpose heavy-quark tolerance for now
 
     mg_param->global_reduction[i] = QUDA_BOOLEAN_YES;
 
@@ -1154,7 +1299,7 @@ void _setMultigridParam(QudaMultigridParam* mg_param) {
     // use single parity injection into the coarse grid
     mg_param->coarse_grid_solution_type[i] = inv_param.solve_type == QUDA_DIRECT_PC_SOLVE ? QUDA_MATPC_SOLUTION : QUDA_MAT_SOLUTION;
 
-    mg_param->omega[i] = 0.85; // over/under relaxation factor
+    mg_param->omega[i] = Quda_multigrid_input.omega;//0.85; // over/under relaxation factor
 
     mg_param->location[i] = QUDA_CUDA_FIELD_LOCATION;
   }
