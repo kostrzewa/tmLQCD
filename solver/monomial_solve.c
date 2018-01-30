@@ -191,7 +191,7 @@ int solve_mms_tm(spinor ** const P, spinor * const Q,
   }
 
 #ifdef TM_USE_QPHIX
-  if( solver_params->external_inverter == QPHIX_INVERTER ){
+  if( solver_params->external_inverter == QPHIX_INVERTER && solver_params->type != MG){
     gamma5(temp[0], Q, VOLUME/2);
     iteration_count = invert_eo_qphix_oneflavour_mshift(P, temp[0],
                                                         solver_params->max_iter, solver_params->squared_solver_prec,
@@ -327,7 +327,7 @@ int solve_mms_nd(spinor ** const Pup, spinor ** const Pdn,
   }
 
 #ifdef TM_USE_QPHIX
-  if(solver_params->external_inverter == QPHIX_INVERTER){
+  if(solver_params->external_inverter == QPHIX_INVERTER && solver_params->type != MG){
     //  gamma5 (M.M^dagger)^{-1} gamma5 = [ Q(+mu,eps) Q(-mu,eps) ]^{-1}
     gamma5(temp[0], Qup, VOLUME/2);
     gamma5(temp[1], Qdn, VOLUME/2);
