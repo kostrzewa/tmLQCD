@@ -214,7 +214,9 @@ void _initQphix(int argc, char **argv, tm_QPhiXParams_t params, int c12, QphixPr
     if (g_debug_level >= 5) {
       for (int proc = 0; proc < g_nproc; proc++) {
         if (proc == g_proc_id) {
-          const int coordinates[4] = {g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
+          const int coordinates[4] = {g_proc_coords[1],
+                                      g_proc_coords[2],
+                                      g_proc_coords[3],
                                       g_proc_coords[0]};
           int id = QMP_get_node_number_from(coordinates);
           int *qmp_coords = QMP_get_logical_coordinates_from(id);

@@ -281,10 +281,16 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
 #  if defined PARALLELXYZT
   ndims = 4;
 #  endif
+
+  // In order to work more nicely with other codes, we adopt at this point
+  // the convention of having the X processes on the fastest running index
+  // for the creation of the cartesian grid.
+  // Further down below, when we create the cartesian grid, we will remap
+  // dimensions [1] and [3]
   dims[0] = N_PROC_T;
-  dims[1] = N_PROC_X;
+  dims[1] = N_PROC_Z;
   dims[2] = N_PROC_Y;
-  dims[3] = N_PROC_Z;
+  dims[3] = N_PROC_X;
 
 
   MPI_Comm_size(MPI_COMM_WORLD, &g_nproc);
@@ -292,14 +298,14 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   MPI_Get_processor_name(processor_name, &namelen);
   MPI_Dims_create(g_nproc, nalldims, dims);
   if(g_proc_id == 0){
-    printf("# Creating the following cartesian grid for a %d dimensional parallelisation:\n# %d x %d x %d x %d\n"
-            , ndims, dims[0], dims[1], dims[2], dims[3]);
+    printf("# Creating the following cartesian grid for a %d dimensional parallelisation:\n# (TXYZ) %d x %d x %d x %d\n"
+            , ndims, dims[0], dims[3], dims[2], dims[1]);
   }
 
   g_nproc_t = dims[0];
-  g_nproc_x = dims[1];
+  g_nproc_x = dims[3];
   g_nproc_y = dims[2];
-  g_nproc_z = dims[3];
+  g_nproc_z = dims[1];
 
   if( (g_nproc_t < 1 || g_nproc_x < 1 || g_nproc_y < 1 || g_nproc_z < 1) ||
       (LX%g_nproc_x != 0 || LY%g_nproc_y != 0 || LZ%g_nproc_z != 0 || T_global%g_nproc_t != 0) ) {
@@ -372,14 +378,25 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
 #  endif
 # endif
 
-  MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, reorder, &g_cart_grid);
+  // remap dimensions 1 and 3
+  int tmp = dims[1];
+  dims[1] = dims[3];
+  dims[3] = tmp;
+
+  MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, 1, &g_cart_grid);
   MPI_Comm_rank(g_cart_grid, &g_cart_id);
   MPI_Cart_coords(g_cart_grid, g_cart_id, nalldims, g_proc_coords);
+
   if (g_debug_level > 1) {
-    fprintf(stdout,"# Process %d of %d on %s: cart_id %d, coordinates (%d %d %d %d)\n",
-            g_proc_id, g_nproc, processor_name, g_cart_id, 
-            g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3]);
-    fflush(stdout);
+    for(int proc_id = 0; proc_id < g_nproc; proc_id++){
+      if(proc_id == g_proc_id){
+        fprintf(stdout,"# Process %d of %d on %s: cart_id %d, coordinates (%d %d %d %d)\n",
+                g_proc_id, g_nproc, processor_name, g_cart_id, 
+                g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3]);
+        fflush(stdout);
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
   }
   if(g_stdio_proc == -1){
     g_stdio_proc = g_proc_id;
