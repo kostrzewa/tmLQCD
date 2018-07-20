@@ -225,9 +225,9 @@ void _initQphix(int argc, char **argv, tm_QPhiXParams_t params, int c12, QphixPr
           int id = QMP_get_node_number_from(coordinates);
           int *qmp_coords = QMP_get_logical_coordinates_from(id);
           fflush(stdout);
-          printf("QMP id: %3d(%3d)   x:%3d y:%3d z:%3d t:%3d\n", id, id, qmp_coords[0], qmp_coords[1],
+          printf("QMP id: %5d(%5d)   x:%3d y:%3d z:%3d t:%3d\n", id, id, qmp_coords[0], qmp_coords[1],
                  qmp_coords[2], qmp_coords[3]);
-          printf("MPI id: %3d(%3d)   x:%3d y:%3d z:%3d t:%3d\n\n", g_cart_id, g_proc_id, g_proc_coords[1],
+          printf("MPI id: %5d(%5d)   x:%3d y:%3d z:%3d t:%3d\n\n", g_cart_id, g_proc_id, g_proc_coords[1],
                  g_proc_coords[2], g_proc_coords[3], g_proc_coords[0]);
           free(qmp_coords);
           fflush(stdout);
