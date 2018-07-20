@@ -382,16 +382,23 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   //dims[1] = dims[3];
   //dims[3] = tmp;
   //MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, 0, &g_cart_grid);
-  
+ 
+  int txyz_proc_coords[4]; 
   MPI_Comm_rank(g_cart_grid, &g_cart_id);
-  MPI_Cart_coords(g_cart_grid, g_cart_id, nalldims, g_proc_coords);
+  MPI_Cart_coords(g_cart_grid, g_cart_id, nalldims, txyz_proc_coords);
+
+  // remap coordinates to tmLQCD conventions
+  g_proc_coords[0] = txyz_proc_coords[0];
+  g_proc_coords[1] = txyz_proc_coords[3];
+  g_proc_coords[2] = txyz_proc_coords[2];
+  g_proc_coords[3] = txyz_proc_coords[1];
 
   if (g_debug_level > 1) {
     for(int proc_id = 0; proc_id < g_nproc; proc_id++){
       if(proc_id == g_proc_id){
         fprintf(stdout,"# Process %d of %d on %s: cart_id %d, TXYZ coordinates (%d %d %d %d)\n",
                 g_proc_id, g_nproc, processor_name, g_cart_id, 
-                g_proc_coords[0], g_proc_coords[3], g_proc_coords[2], g_proc_coords[1]);
+                g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3]);
         fflush(stdout);
       }
       MPI_Barrier(MPI_COMM_WORLD);

@@ -202,9 +202,9 @@ void _initQphix(int argc, char **argv, tm_QPhiXParams_t params, int c12, QphixPr
     // in order for the topologies to agree between tmLQCD and QPhiX, the dimensions need to be
     // permuted
     // since Z is fastest in tmLQCD and X is second-slowest
-    qmp_tm_map[0] = 2;
+    qmp_tm_map[0] = 0;
     qmp_tm_map[1] = 1;
-    qmp_tm_map[2] = 0;
+    qmp_tm_map[2] = 2;
     qmp_tm_map[3] = 3;
     if (QMP_declare_logical_topology_map(qmp_geom, 4, qmp_tm_map, 4) != QMP_SUCCESS) {
       QMP_error("Failed to declare QMP Logical Topology\n");

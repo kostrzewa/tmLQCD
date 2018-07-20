@@ -128,9 +128,9 @@ static int Cart_rank(MPI_Comm comm, const int coords[], int *rank)
   int coords_l[4];
   
   coords_l[0]=coords[0];
-  coords_l[1]=coords[3];
+  coords_l[1]=coords[1];
   coords_l[2]=coords[2];
-  coords_l[3]=coords[1];
+  coords_l[3]=coords[3];
   
   return MPI_Cart_rank(comm, coords_l, rank);
 }
@@ -140,9 +140,9 @@ static int Cart_coords(MPI_Comm comm, int rank, int maxdims, int coords[])
   int stat;
   
   stat=MPI_Cart_coords(comm, rank, maxdims, coords);
-  int tmp=coords[1];
-  coords[1]=coords[3];
-  coords[3]=tmp;
+  //int tmp=coords[1];
+  //coords[1]=coords[3];
+  //coords[3]=tmp;
 
   return stat;
 }
