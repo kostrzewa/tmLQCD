@@ -206,14 +206,18 @@ void _initQphix(int argc, char **argv, tm_QPhiXParams_t params, int c12, QphixPr
     qmp_tm_map[1] = 1;
     qmp_tm_map[2] = 2;
     qmp_tm_map[3] = 3;
-    if (QMP_declare_logical_topology_map(qmp_geom, 4, qmp_tm_map, 4) != QMP_SUCCESS) {
+    //if (QMP_declare_logical_topology_map(qmp_geom, 4, qmp_tm_map, 4) != QMP_SUCCESS) {
+    //  QMP_error("Failed to declare QMP Logical Topology\n");
+    //  abort();
+    //}
+    if (QMP_declare_logical_topology(qmp_geom, 4) != QMP_SUCCESS) {
       QMP_error("Failed to declare QMP Logical Topology\n");
       abort();
     }
     // longish test to check if the logical coordinates are correctly mapped
     if (g_debug_level >= 5) {
       for (int proc = 0; proc < g_nproc; proc++) {
-        if (proc == g_proc_id) {
+        if (proc == g_cart_id) {
           const int coordinates[4] = {g_proc_coords[1],
                                       g_proc_coords[2],
                                       g_proc_coords[3],
@@ -221,16 +225,14 @@ void _initQphix(int argc, char **argv, tm_QPhiXParams_t params, int c12, QphixPr
           int id = QMP_get_node_number_from(coordinates);
           int *qmp_coords = QMP_get_logical_coordinates_from(id);
           fflush(stdout);
-          printf("QMP id: %3d x:%3d y:%3d z:%3d t:%3d\n", id, qmp_coords[0], qmp_coords[1],
+          printf("QMP id: %3d(%3d)   x:%3d y:%3d z:%3d t:%3d\n", id, id, qmp_coords[0], qmp_coords[1],
                  qmp_coords[2], qmp_coords[3]);
-          printf("MPI id: %3d x:%3d y:%3d z:%3d t:%3d\n\n", g_proc_id, g_proc_coords[1],
+          printf("MPI id: %3d(%3d)   x:%3d y:%3d z:%3d t:%3d\n\n", g_cart_id, g_proc_id, g_proc_coords[1],
                  g_proc_coords[2], g_proc_coords[3], g_proc_coords[0]);
           free(qmp_coords);
           fflush(stdout);
-          MPI_Barrier(MPI_COMM_WORLD);
-        } else {
-          MPI_Barrier(MPI_COMM_WORLD);
         }
+        MPI_Barrier(MPI_COMM_WORLD);
       }
     }
     qmp_topo_initialised = true;

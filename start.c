@@ -865,7 +865,13 @@ void start_ranlux(int level, int seed)
    #endif 
  
    if(g_debug_level > 3) {
-     printf("Local seed is %d  proc_id = %d\n", loc_seed, g_proc_id);
+     for(int proc_id = 0; proc_id < g_nproc; proc_id++){
+       if(proc_id == g_proc_id){
+         printf("Local seed is %d  proc_id = %d, cart_id = %d\n", loc_seed, g_proc_id, g_cart_id);
+         fflush(stdout);
+       }
+       MPI_Barrier(MPI_COMM_WORLD);
+     }
    }
 
    rlxs_init(level-1, loc_seed);

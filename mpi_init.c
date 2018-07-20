@@ -293,6 +293,7 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &g_nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &g_proc_id);
   MPI_Get_processor_name(processor_name, &namelen);
+  
   MPI_Dims_create(g_nproc, nalldims, dims);
   if(g_proc_id == 0){
     printf("# Creating the following cartesian grid for a %d dimensional parallelisation:\n# (TXYZ) %d x %d x %d x %d\n"
@@ -375,7 +376,7 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
 #  endif
 # endif
 
-  MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, 0, &g_cart_grid);
+  MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, reorder, &g_cart_grid);
 
   // remap dimensions 1 and 3
   //int tmp = dims[1];
@@ -410,6 +411,8 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   for(i = 0; i < 8; i++) {
     g_nb_list[i] = g_cart_id;
   }
+  // note below that communication in X is in dim "3"
+  // and communication in Z is in dim "1"
 #  if (defined PARALLELT || defined PARALLELXT || defined PARALLELXYT || defined PARALLELXYZT)
   MPI_Cart_shift(g_cart_grid, 0, 1, &g_nb_t_dn, &g_nb_t_up);
   g_nb_list[0] = g_nb_t_up;  
@@ -733,37 +736,41 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   /* For observables we need communicators for Cartesian time slices */
   MPI_Comm_split(g_cart_grid, g_proc_coords[0], g_cart_id, &g_mpi_time_slices);
   MPI_Comm_rank(g_mpi_time_slices, &g_mpi_time_rank);
-  if(g_debug_level > 4) {
-    fprintf(stdout, "# My mpi_time_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
-	    g_mpi_time_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
-	    g_cart_id);
-  }
 
   /* and communicators for Cartesian z-slices */
   MPI_Comm_split(g_cart_grid, g_proc_coords[3], g_cart_id, &g_mpi_z_slices);
   MPI_Comm_rank(g_mpi_z_slices, &g_mpi_z_rank);
-  if(g_debug_level > 4) {
-    fprintf(stdout, "# My mpi_z_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
-	    g_mpi_z_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
-	    g_cart_id);
-  }
 
   /* and spatial volume slices */
   MPI_Comm_split(g_cart_grid, g_mpi_time_rank, g_proc_coords[0], &g_mpi_SV_slices);
   MPI_Comm_rank(g_mpi_SV_slices, &g_mpi_SV_rank);
-  if(g_debug_level > 4) {
-    fprintf(stdout, "# My mpi_SV_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
-	    g_mpi_SV_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
-	    g_cart_id);
-  }
 
   /* and tim-volume slices orthogonal to the z-direction */
   MPI_Comm_split(g_cart_grid, g_mpi_z_rank, g_proc_coords[3], &g_mpi_ST_slices);
   MPI_Comm_rank(g_mpi_ST_slices, &g_mpi_ST_rank);
-  if(g_debug_level > 4) {
-    fprintf(stdout, "# My mpi_ST_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
-	    g_mpi_ST_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
-	    g_cart_id);
+
+  if(g_debug_level > 4){
+    for(int proc_id = 0; proc_id < g_nproc; proc_id++){
+      if(proc_id == g_cart_id){
+        fprintf(stdout, "# My mpi_time_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
+                g_mpi_time_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
+                g_cart_id);
+        fflush(stdout);
+        fprintf(stdout, "# My mpi_z_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
+                g_mpi_z_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
+                g_cart_id);
+        fflush(stdout);
+        fprintf(stdout, "# My mpi_SV_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
+                g_mpi_SV_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
+                g_cart_id);
+        fflush(stdout);
+        fprintf(stdout, "# My mpi_ST_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
+                g_mpi_ST_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
+                g_cart_id);
+        fflush(stdout);
+      }
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
   }
 
   MPI_Op_create(reduce_su3_ray, 0, &mpi_reduce_su3_ray);
