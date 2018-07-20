@@ -285,13 +285,10 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   // In order to work more nicely with other codes, we adopt at this point
   // the convention of having the X processes on the fastest running index
   // for the creation of the cartesian grid.
-  // Further down below, when we create the cartesian grid, we will remap
-  // dimensions [1] and [3]
   dims[0] = N_PROC_T;
   dims[1] = N_PROC_Z;
   dims[2] = N_PROC_Y;
   dims[3] = N_PROC_X;
-
 
   MPI_Comm_size(MPI_COMM_WORLD, &g_nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &g_proc_id);
@@ -378,21 +375,23 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
 #  endif
 # endif
 
-  // remap dimensions 1 and 3
-  int tmp = dims[1];
-  dims[1] = dims[3];
-  dims[3] = tmp;
+  MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, 0, &g_cart_grid);
 
-  MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, 1, &g_cart_grid);
+  // remap dimensions 1 and 3
+  //int tmp = dims[1];
+  //dims[1] = dims[3];
+  //dims[3] = tmp;
+  //MPI_Cart_create(MPI_COMM_WORLD, nalldims, dims, periods, 0, &g_cart_grid);
+  
   MPI_Comm_rank(g_cart_grid, &g_cart_id);
   MPI_Cart_coords(g_cart_grid, g_cart_id, nalldims, g_proc_coords);
 
   if (g_debug_level > 1) {
     for(int proc_id = 0; proc_id < g_nproc; proc_id++){
       if(proc_id == g_proc_id){
-        fprintf(stdout,"# Process %d of %d on %s: cart_id %d, coordinates (%d %d %d %d)\n",
+        fprintf(stdout,"# Process %d of %d on %s: cart_id %d, TXYZ coordinates (%d %d %d %d)\n",
                 g_proc_id, g_nproc, processor_name, g_cart_id, 
-                g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3]);
+                g_proc_coords[0], g_proc_coords[3], g_proc_coords[2], g_proc_coords[1]);
         fflush(stdout);
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -410,7 +409,7 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   g_nb_list[1] = g_nb_t_dn;
 #  endif
 #  if (defined PARALLELXT || defined PARALLELXYT || defined PARALLELXYZT || defined PARALLELX || defined PARALLELXY || defined PARALLELXYZ )
-  MPI_Cart_shift(g_cart_grid, 1, 1, &g_nb_x_dn, &g_nb_x_up);
+  MPI_Cart_shift(g_cart_grid, 3, 1, &g_nb_x_dn, &g_nb_x_up);
   g_nb_list[2] = g_nb_x_up;  
   g_nb_list[3] = g_nb_x_dn;
 #  endif
@@ -420,7 +419,7 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
   g_nb_list[5] = g_nb_y_dn;
 #  endif
 #  if (defined PARALLELXYZT || defined PARALLELXYZ ) 
-  MPI_Cart_shift(g_cart_grid, 3, 1, &g_nb_z_dn, &g_nb_z_up);
+  MPI_Cart_shift(g_cart_grid, 1, 1, &g_nb_z_dn, &g_nb_z_up);
   g_nb_list[6] = g_nb_z_up;  
   g_nb_list[7] = g_nb_z_dn;
 #  endif
