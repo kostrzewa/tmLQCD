@@ -396,6 +396,7 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
 
   if (g_debug_level > 1) {
     for(int proc_id = 0; proc_id < g_nproc; proc_id++){
+      MPI_Barrier(MPI_COMM_WORLD);
       if(proc_id == g_proc_id){
         fprintf(stdout,"# Process %d of %d on %s: cart_id %d, TXYZ coordinates (%d %d %d %d)\n",
                 g_proc_id, g_nproc, processor_name, g_cart_id, 
@@ -751,6 +752,7 @@ void tmlqcd_mpi_init(int argc,char *argv[]) {
 
   if(g_debug_level > 4){
     for(int proc_id = 0; proc_id < g_nproc; proc_id++){
+      MPI_Barrier(MPI_COMM_WORLD);
       if(proc_id == g_cart_id){
         fprintf(stdout, "# My mpi_time_rank = %d, g_proc_coords = (%d,%d,%d,%d), g_cart_id = %d\n", 
                 g_mpi_time_rank, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3],
