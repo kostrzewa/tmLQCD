@@ -1555,53 +1555,64 @@ void D_psi_bispinor(bispinor * const P, bispinor * const Q){
 
     }
 
+    _vector_add_mul(tmpr.sp_up.s0, (3.0), s->sp_up.s0);
+    _vector_add_mul(tmpr.sp_up.s1, (3.0), s->sp_up.s1);
+    _vector_add_mul(tmpr.sp_up.s2, (3.0), s->sp_up.s2);
+    _vector_add_mul(tmpr.sp_up.s3, (3.0), s->sp_up.s3);
+
+    _vector_add_mul(tmpr.sp_dn.s0, (3.0), s->sp_dn.s0);
+    _vector_add_mul(tmpr.sp_dn.s1, (3.0), s->sp_dn.s1);
+    _vector_add_mul(tmpr.sp_dn.s2, (3.0), s->sp_dn.s2);
+    _vector_add_mul(tmpr.sp_dn.s3, (3.0), s->sp_dn.s3);
+
+
     /******************************* direction +0 *********************************/
     iy=g_iup[ix][0];
     sp = (bispinor *) Q +iy;
     up=&g_gauge_field[ix][0];
-    p0add_bispinor(&tmpr, sp, up, 0.5*phase_0);
+    p0add_bispinor(&tmpr, sp, up, -0.5*phase_0);
 
     /******************************* direction -0 *********************************/
     iy=g_idn[ix][0];
     sm  = (bispinor *) Q +iy;
     um=&g_gauge_field[iy][0];
-    m0add_bispinor(&tmpr, sm, um, 0.5*phase_0);
+    m0add_bispinor(&tmpr, sm, um,-0.5*phase_0);
 
     /******************************* direction +1 *********************************/
     iy=g_iup[ix][1];
     sp = (bispinor *) Q +iy;
     up=&g_gauge_field[ix][1];
-    p1add_bispinor(&tmpr, sp, up, 0.5*phase_1);
+    p1add_bispinor(&tmpr, sp, up,-0.5*phase_1);
 
     /******************************* direction -1 *********************************/
     iy=g_idn[ix][1];
     sm = (bispinor *) Q +iy;
     um=&g_gauge_field[iy][1];
-    m1add_bispinor(&tmpr, sm, um, 0.5*phase_1);
+    m1add_bispinor(&tmpr, sm, um,-0.5*phase_1);
 
     /******************************* direction +2 *********************************/
     iy=g_iup[ix][2];
     sp = (bispinor *) Q +iy;
     up=&g_gauge_field[ix][2];
-    p2add_bispinor(&tmpr, sp, up, 0.5*phase_2);
+    p2add_bispinor(&tmpr, sp, up,-0.5*phase_2);
 
     /******************************* direction -2 *********************************/
     iy=g_idn[ix][2];
     sm = (bispinor *) Q +iy;
     um=&g_gauge_field[iy][2];
-    m2add_bispinor(&tmpr, sm, um, 0.5*phase_2);
+    m2add_bispinor(&tmpr, sm, um,-0.5*phase_2);
 
     /******************************* direction +3 *********************************/
     iy=g_iup[ix][3];
     sp = (bispinor *) Q +iy;
     up=&g_gauge_field[ix][3];
-    p3add_bispinor(&tmpr, sp, up, 0.5*phase_3);
+    p3add_bispinor(&tmpr, sp, up,-0.5*phase_3);
 
     /******************************* direction -3 *********************************/
     iy=g_idn[ix][3];
     sm = (bispinor *) Q +iy;
     um=&g_gauge_field[iy][3];
-    m3addandstore_bispinor(rr, sm, um, 0.5*phase_3, &tmpr);
+    m3addandstore_bispinor(rr, sm, um,-0.5*phase_3, &tmpr);
   }
 #ifdef TM_USE_OMP
   } /* OpenMP closing brace */
