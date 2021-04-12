@@ -620,6 +620,13 @@ int main(int argc,char *argv[])
   mu03_BSM=0;
   eta_BSM=0.;
   rho_BSM=0;
+
+  printf("# [tmlqcd-BSM test] csw_BSM %e m0_BSM %e mu03_BSM %e eta_BSM %e rho_BSM \n", csw_BSM, m0_BSM, mu03_BSM, eta_BSM, rho_BSM);
+  g_mu=0;
+  g_c_sw=0;
+  g_kappa=1;
+
+  printf("# [tmlqcd-BSM test] g_mu %e g_c_sw %e g_kappa %e\n", g_mu,g_c_sw,g_kappa);
   printf("# [tmlqcd-BSM test] application of D_psi_BSM3 operator\n");
 #ifdef TM_USE_MPI
   MPI_Barrier(MPI_COMM_WORLD);
@@ -647,10 +654,6 @@ int main(int argc,char *argv[])
 
 
   printf("# [tmlqcd-BSM test] Application of D_psi ( Carsten' operator ) \n");
-  g_mu=0;
-  g_c_sw=0;
-  g_kappa=1;
-
   D_psi_bispinor((bispinor *)(g_bispinor_field[5]), (bispinor *)(g_bispinor_field[4]));
 
   squarenorm_w = square_norm((spinor*)g_bispinor_field[5], 2*VOLUME, 1);
@@ -705,7 +708,7 @@ int main(int argc,char *argv[])
 
   g_c_sw=1;
   g_kappa=1;
-  sw_term( (const su3**) g_gauge_field, 1., g_c_sw);
+  sw_term( (const su3**) g_gauge_field, 1., g_c_sw/2);
 
   printf("# [tmlqcd-BSM test] Application of D_psi ( Carsten' operator ) \n");
 
