@@ -402,7 +402,7 @@ static inline void p0add(bispinor * restrict const tmpr , bispinor const * restr
   }
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
@@ -464,7 +464,7 @@ static inline void p1add(bispinor * restrict const tmpr, bispinor const * restri
   }
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
@@ -524,7 +524,7 @@ static inline void p2add(bispinor * restrict const tmpr, bispinor const * restri
   }
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
@@ -585,7 +585,7 @@ static inline void p3add(bispinor * restrict const tmpr, bispinor const * restri
 
   }
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
