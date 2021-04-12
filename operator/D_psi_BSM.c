@@ -242,7 +242,7 @@ static inline void p0add(bispinor * restrict const tmpr , bispinor const * restr
   _vector_add_assign(tmpr->sp_dn.s3, us.sp_dn.s1);
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
@@ -278,7 +278,7 @@ static inline void p1add(bispinor * restrict const tmpr, bispinor const * restri
   _vector_i_sub_assign(tmpr->sp_dn.s3, us.sp_dn.s0);
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
@@ -314,7 +314,7 @@ static inline void p2add(bispinor * restrict const tmpr, bispinor const * restri
   _vector_add_assign(tmpr->sp_dn.s3, us.sp_dn.s0);
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
@@ -350,7 +350,7 @@ static inline void p3add(bispinor * restrict const tmpr, bispinor const * restri
   _vector_i_add_assign(tmpr->sp_dn.s3, us.sp_dn.s1);
 
   // tmpr += F*us
-  Fadd(tmpr, &us, phi,  phaseF, -1*sign);
+  Fadd(tmpr, &us, phi,  phaseF, sign);
   Fadd(tmpr, &us, phip, phaseF, sign);
 
   return;
