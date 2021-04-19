@@ -1555,15 +1555,15 @@ void D_psi_bispinor(bispinor * const P, bispinor * const Q){
 
     }
 
-    _vector_add_mul(tmpr.sp_up.s0, (3.0), s->sp_up.s0);
-    _vector_add_mul(tmpr.sp_up.s1, (3.0), s->sp_up.s1);
-    _vector_add_mul(tmpr.sp_up.s2, (3.0), s->sp_up.s2);
-    _vector_add_mul(tmpr.sp_up.s3, (3.0), s->sp_up.s3);
+    _vector_add_mul(tmpr.sp_up.s0, (3.5), s->sp_up.s0);
+    _vector_add_mul(tmpr.sp_up.s1, (3.5), s->sp_up.s1);
+    _vector_add_mul(tmpr.sp_up.s2, (3.5), s->sp_up.s2);
+    _vector_add_mul(tmpr.sp_up.s3, (3.5), s->sp_up.s3);
 
-    _vector_add_mul(tmpr.sp_dn.s0, (3.0), s->sp_dn.s0);
-    _vector_add_mul(tmpr.sp_dn.s1, (3.0), s->sp_dn.s1);
-    _vector_add_mul(tmpr.sp_dn.s2, (3.0), s->sp_dn.s2);
-    _vector_add_mul(tmpr.sp_dn.s3, (3.0), s->sp_dn.s3);
+    _vector_add_mul(tmpr.sp_dn.s0, (3.5), s->sp_dn.s0);
+    _vector_add_mul(tmpr.sp_dn.s1, (3.5), s->sp_dn.s1);
+    _vector_add_mul(tmpr.sp_dn.s2, (3.5), s->sp_dn.s2);
+    _vector_add_mul(tmpr.sp_dn.s3, (3.5), s->sp_dn.s3);
 
 
     /******************************* direction +0 *********************************/

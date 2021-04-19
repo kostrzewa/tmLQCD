@@ -989,15 +989,15 @@ void D_psi_BSM3(bispinor * const P, bispinor * const Q){
         // Here we already took a factor of 1. in the clover 
         // term account, thus we only have to add a factor of 3
         /* tmpr += (3*r_BSM+m0_BSM)*s */
-        _vector_add_mul(rr->sp_up.s0, (3.0+m0_BSM), s->sp_up.s0);
-        _vector_add_mul(rr->sp_up.s1, (3.0+m0_BSM), s->sp_up.s1);
-        _vector_add_mul(rr->sp_up.s2, (3.0+m0_BSM), s->sp_up.s2);
-        _vector_add_mul(rr->sp_up.s3, (3.0+m0_BSM), s->sp_up.s3);
+        _vector_add_mul(rr->sp_up.s0, (3.5+m0_BSM), s->sp_up.s0);
+        _vector_add_mul(rr->sp_up.s1, (3.5+m0_BSM), s->sp_up.s1);
+        _vector_add_mul(rr->sp_up.s2, (3.5+m0_BSM), s->sp_up.s2);
+        _vector_add_mul(rr->sp_up.s3, (3.5+m0_BSM), s->sp_up.s3);
 
-        _vector_add_mul(rr->sp_dn.s0, (3.0+m0_BSM), s->sp_dn.s0);
-        _vector_add_mul(rr->sp_dn.s1, (3.0+m0_BSM), s->sp_dn.s1);
-        _vector_add_mul(rr->sp_dn.s2, (3.0+m0_BSM), s->sp_dn.s2);
-        _vector_add_mul(rr->sp_dn.s3, (3.0+m0_BSM), s->sp_dn.s3);
+        _vector_add_mul(rr->sp_dn.s0, (3.5+m0_BSM), s->sp_dn.s0);
+        _vector_add_mul(rr->sp_dn.s1, (3.5+m0_BSM), s->sp_dn.s1);
+        _vector_add_mul(rr->sp_dn.s2, (3.5+m0_BSM), s->sp_dn.s2);
+        _vector_add_mul(rr->sp_dn.s3, (3.5+m0_BSM), s->sp_dn.s3);
 
 
         /* tmpr += (\eta_BSM+2*\rho_BSM) * F(x)*Q(x) */
@@ -1182,15 +1182,15 @@ void D_psi_dagger_BSM3(bispinor * const P, bispinor * const Q){
       // + the additional wilson bare mass m_0
       // Here we already took a factor of 1. in the clover 
       // term account, thus we only have to add a factor of 3
-      _vector_add_mul(rr->sp_up.s0, (3.+m0_BSM), s->sp_up.s0);
-      _vector_add_mul(rr->sp_up.s1, (3.+m0_BSM), s->sp_up.s1);
-      _vector_add_mul(rr->sp_up.s2, (3.+m0_BSM), s->sp_up.s2);
-      _vector_add_mul(rr->sp_up.s3, (3.+m0_BSM), s->sp_up.s3);
+      _vector_add_mul(rr->sp_up.s0, (3.5+m0_BSM), s->sp_up.s0);
+      _vector_add_mul(rr->sp_up.s1, (3.5+m0_BSM), s->sp_up.s1);
+      _vector_add_mul(rr->sp_up.s2, (3.5+m0_BSM), s->sp_up.s2);
+      _vector_add_mul(rr->sp_up.s3, (3.5+m0_BSM), s->sp_up.s3);
 
-      _vector_add_mul(rr->sp_dn.s0, (3.+m0_BSM), s->sp_dn.s0);
-      _vector_add_mul(rr->sp_dn.s1, (3.+m0_BSM), s->sp_dn.s1);
-      _vector_add_mul(rr->sp_dn.s2, (3.+m0_BSM), s->sp_dn.s2);
-      _vector_add_mul(rr->sp_dn.s3, (3.+m0_BSM), s->sp_dn.s3);
+      _vector_add_mul(rr->sp_dn.s0, (3.5+m0_BSM), s->sp_dn.s0);
+      _vector_add_mul(rr->sp_dn.s1, (3.5+m0_BSM), s->sp_dn.s1);
+      _vector_add_mul(rr->sp_dn.s2, (3.5+m0_BSM), s->sp_dn.s2);
+      _vector_add_mul(rr->sp_dn.s3, (3.5+m0_BSM), s->sp_dn.s3);
       
       // tmpr += (\eta_BSM+2*\rho_BSM) * Fbar(x)*Q(x)
       Fadd(rr, s, phi, eta_BSM+2.0*rho_BSM, -1.);
