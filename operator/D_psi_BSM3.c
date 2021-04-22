@@ -917,7 +917,7 @@ void D_psi_BSM3(bispinor * const P, bispinor * const Q){
     scalar phim[4][4];               /* phi_i(x-mu) = phim[mu][i] */
     const su3 *w1,*w2,*w3;
     _Complex double rho1, rho2;
-    rho1 = 0.5*(1. +  mu03_BSM * I);
+    rho1 = (1. +  mu03_BSM * I);
     rho2 = conj(rho1);
 
 
@@ -981,23 +981,24 @@ void D_psi_BSM3(bispinor * const P, bispinor * const Q){
 
         }
 
-        // FIXME split r-term into two pieces (perhaps), apply 3r here, 1r via assign_mul_one_sw_pm_imu_site_lexic
-        // tmpr += (3*r_BSM+m0_BSM)*s
+        // FIXME split r-term into two pieces (perhaps), apply 3.0r here, 1r via assign_mul_one_sw_pm_imu_site_lexic
+        // because that is (1+icsw/2*sum_mu>nu sigma_munu F_munu )
+        // tmpr += (3.0*r_BSM+m0_BSM)*s
         // This part takes care of the constant factor coming from the 
         // second derivative in the wilson term 4r0 delta_xy
         // + the additional wilson bare mass m_0
         // Here we already took a factor of 1. in the clover 
-        // term account, thus we only have to add a factor of 3
-        /* tmpr += (3*r_BSM+m0_BSM)*s */
-        _vector_add_mul(rr->sp_up.s0, (3.5+m0_BSM), s->sp_up.s0);
-        _vector_add_mul(rr->sp_up.s1, (3.5+m0_BSM), s->sp_up.s1);
-        _vector_add_mul(rr->sp_up.s2, (3.5+m0_BSM), s->sp_up.s2);
-        _vector_add_mul(rr->sp_up.s3, (3.5+m0_BSM), s->sp_up.s3);
+        // term account, thus we only have to add a factor of 3.0
+        /* tmpr += (3.0*r_BSM+m0_BSM)*s */
+        _vector_add_mul(rr->sp_up.s0, (3+m0_BSM), s->sp_up.s0);
+        _vector_add_mul(rr->sp_up.s1, (3+m0_BSM), s->sp_up.s1);
+        _vector_add_mul(rr->sp_up.s2, (3+m0_BSM), s->sp_up.s2);
+        _vector_add_mul(rr->sp_up.s3, (3+m0_BSM), s->sp_up.s3);
 
-        _vector_add_mul(rr->sp_dn.s0, (3.5+m0_BSM), s->sp_dn.s0);
-        _vector_add_mul(rr->sp_dn.s1, (3.5+m0_BSM), s->sp_dn.s1);
-        _vector_add_mul(rr->sp_dn.s2, (3.5+m0_BSM), s->sp_dn.s2);
-        _vector_add_mul(rr->sp_dn.s3, (3.5+m0_BSM), s->sp_dn.s3);
+        _vector_add_mul(rr->sp_dn.s0, (3+m0_BSM), s->sp_dn.s0);
+        _vector_add_mul(rr->sp_dn.s1, (3+m0_BSM), s->sp_dn.s1);
+        _vector_add_mul(rr->sp_dn.s2, (3+m0_BSM), s->sp_dn.s2);
+        _vector_add_mul(rr->sp_dn.s3, (3+m0_BSM), s->sp_dn.s3);
 
 
         /* tmpr += (\eta_BSM+2*\rho_BSM) * F(x)*Q(x) */
@@ -1122,7 +1123,7 @@ void D_psi_dagger_BSM3(bispinor * const P, bispinor * const Q){
     scalar phip[4][4];               // phi_i(x+mu) = phip[mu][i]
     scalar phim[4][4];               // phi_i(x-mu) = phim[mu][i] 
     _Complex double rho1, rho2;
-    rho1 = 0.5*( 1. +  mu03_BSM * I);
+    rho1 = ( 1. +  mu03_BSM * I);
     rho2 = conj(rho1);
 
     
@@ -1182,15 +1183,15 @@ void D_psi_dagger_BSM3(bispinor * const P, bispinor * const Q){
       // + the additional wilson bare mass m_0
       // Here we already took a factor of 1. in the clover 
       // term account, thus we only have to add a factor of 3
-      _vector_add_mul(rr->sp_up.s0, (3.5+m0_BSM), s->sp_up.s0);
-      _vector_add_mul(rr->sp_up.s1, (3.5+m0_BSM), s->sp_up.s1);
-      _vector_add_mul(rr->sp_up.s2, (3.5+m0_BSM), s->sp_up.s2);
-      _vector_add_mul(rr->sp_up.s3, (3.5+m0_BSM), s->sp_up.s3);
+      _vector_add_mul(rr->sp_up.s0, (3+m0_BSM), s->sp_up.s0);
+      _vector_add_mul(rr->sp_up.s1, (3+m0_BSM), s->sp_up.s1);
+      _vector_add_mul(rr->sp_up.s2, (3+m0_BSM), s->sp_up.s2);
+      _vector_add_mul(rr->sp_up.s3, (3+m0_BSM), s->sp_up.s3);
 
-      _vector_add_mul(rr->sp_dn.s0, (3.5+m0_BSM), s->sp_dn.s0);
-      _vector_add_mul(rr->sp_dn.s1, (3.5+m0_BSM), s->sp_dn.s1);
-      _vector_add_mul(rr->sp_dn.s2, (3.5+m0_BSM), s->sp_dn.s2);
-      _vector_add_mul(rr->sp_dn.s3, (3.5+m0_BSM), s->sp_dn.s3);
+      _vector_add_mul(rr->sp_dn.s0, (3+m0_BSM), s->sp_dn.s0);
+      _vector_add_mul(rr->sp_dn.s1, (3+m0_BSM), s->sp_dn.s1);
+      _vector_add_mul(rr->sp_dn.s2, (3+m0_BSM), s->sp_dn.s2);
+      _vector_add_mul(rr->sp_dn.s3, (3+m0_BSM), s->sp_dn.s3);
       
       // tmpr += (\eta_BSM+2*\rho_BSM) * Fbar(x)*Q(x)
       Fadd(rr, s, phi, eta_BSM+2.0*rho_BSM, -1.);
