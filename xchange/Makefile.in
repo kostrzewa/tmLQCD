@@ -32,7 +32,7 @@ COMPILE = ${CC} $(DEFS) ${INCLUDES} ${CFLAGS}
 LIBRARIES = libxchange
 libxchange_TARGETS = xchange_deri xchange_field xchange_gauge xchange_halffield \
 	xchange_lexicfield xchange_2fields xchange_field_tslice \
-	xchange_jacobi
+	xchange_jacobi little_field_gather
 
 libxchange_STARGETS = 
 
@@ -60,10 +60,10 @@ include ${top_srcdir}/Makefile.global
 
 # rule to compile objects
 
-${libxchange_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${libxchange_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${OPTARGS} -c $<
 
-${libxchange_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${libxchange_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${SOPTARGS} -c $<
 
 # rule to make libxchange

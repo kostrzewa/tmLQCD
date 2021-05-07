@@ -27,12 +27,12 @@
  *******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 #endif
 #include "su3.h"
@@ -86,7 +86,7 @@ void square_and_prod_r(double * const x1, double * const x2, spinor * const S, s
   xkc=xks + xkc;
   *x1=xkc;
 
-#if defined MPI
+#if defined TM_USE_MPI
 
   MPI_Allreduce(&xkc, x1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
@@ -94,7 +94,7 @@ void square_and_prod_r(double * const x1, double * const x2, spinor * const S, s
   kc=ks + kc;
   *x2=kc;
 
-#if defined MPI
+#if defined TM_USE_MPI
 
     MPI_Allreduce(&kc, x2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 

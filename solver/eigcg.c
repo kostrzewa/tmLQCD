@@ -91,13 +91,13 @@
 /***********************************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 #endif
 #include "global.h"
@@ -199,7 +199,7 @@ void eigcg(int n, int lde, spinor * const x, spinor * const b, double *normb,
 
   int info, allelems = v_max*v_max;
   
-#ifdef MPI
+#ifdef TM_USE_MPI
   parallel=1;
 #else
   parallel=0;
@@ -412,7 +412,7 @@ void eigcg(int n, int lde, spinor * const x, spinor * const b, double *normb,
     /* Restart test */
     if(nev==0)
     {
-       if (  ( (*reshist < restart_eps_sq) && (rel_prec ==0) ) || ((*reshist < restart_eps_sq*reshist_init ) && (rel_prec==1)) ) 
+       if (*reshist < (restart_eps_sq*reshist_init) ) 
        {  
            *flag = 3;
             break;  /* break do not return */

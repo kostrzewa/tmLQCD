@@ -26,7 +26,7 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -37,6 +37,7 @@
 #include "phmc.h"
 #include "gamma.h"
 #include "linalg_eo.h"
+#include "operator/D_psi.h"
 #include "operator/tm_operators.h"
 #include "operator/clovertm_operators.h"
 #include "operator/tm_operators_nd.h"
@@ -51,6 +52,74 @@ void M_oo_sub_g5_ndpsi(spinor * const l_s, spinor * const l_c,
 		       const double mu, const double eps);
 
 /* external functions */
+
+
+/******************************************
+ *
+ * This is the implementation of
+ *
+ *  M_full_ndpsi = D_w I_f + i gamma5 mubar tau3 - epsbar tau1
+ *  the full operator done for testing purpose
+ ******************************************/
+void M_full_ndpsi(spinor * const Even_new_s, spinor * const Odd_new_s, 
+                  spinor * const Even_new_c, spinor * const Odd_new_c, 
+                  spinor * const Even_s, spinor * const Odd_s,
+                  spinor * const Even_c, spinor * const Odd_c) {
+  
+  double mu = g_mu;
+  g_mu = g_mubar;
+  M_full(Even_new_s, Odd_new_s, Even_s, Odd_s);
+
+  assign_add_mul_r(Even_new_s, Even_c, -g_epsbar, VOLUME/2);
+  assign_add_mul_r(Odd_new_s, Odd_c, -g_epsbar, VOLUME/2);
+  
+  g_mu = -g_mu;
+  M_full(Even_new_c, Odd_new_c, Even_c, Odd_c);
+  
+  assign_add_mul_r(Even_new_c, Even_s, -g_epsbar, VOLUME/2);
+  assign_add_mul_r(Odd_new_c, Odd_s, -g_epsbar, VOLUME/2);
+
+  g_mu = mu;
+}
+
+void Msw_full_ndpsi(spinor * const Even_new_s, spinor * const Odd_new_s, 
+                    spinor * const Even_new_c, spinor * const Odd_new_c, 
+                    spinor * const Even_s, spinor * const Odd_s,
+                    spinor * const Even_c, spinor * const Odd_c) {
+
+  double mu = g_mu;
+  g_mu = g_mubar;
+  Msw_full(Even_new_s, Odd_new_s, Even_s, Odd_s);
+
+  assign_add_mul_r(Even_new_s, Even_c, -g_epsbar, VOLUME/2);
+  assign_add_mul_r(Odd_new_s, Odd_c, -g_epsbar, VOLUME/2);
+  
+  g_mu = -g_mu;
+  Msw_full(Even_new_c, Odd_new_c, Even_c, Odd_c);
+  
+  assign_add_mul_r(Even_new_c, Even_s, -g_epsbar, VOLUME/2);
+  assign_add_mul_r(Odd_new_c, Odd_s, -g_epsbar, VOLUME/2);
+
+  g_mu = mu;
+}
+
+// full VOLUME operator; it used D_psi which works with tm and tm+clover
+void D_ndpsi(spinor * const l_strange, spinor * const l_charm,
+             spinor * const k_strange, spinor * const k_charm) {
+
+  double mu = g_mu;
+  g_mu = g_mubar;
+  D_psi(l_strange,k_strange);
+
+  assign_add_mul_r(l_strange, k_charm, -g_epsbar, VOLUME);
+  
+  g_mu = -g_mu;
+  D_psi(l_charm,k_charm);
+  
+  assign_add_mul_r(l_charm, k_strange, -g_epsbar, VOLUME);
+
+  g_mu = mu;
+}
 
 /******************************************
  *
@@ -109,6 +178,63 @@ void Qsw_ndpsi(spinor * const l_strange, spinor * const l_charm,
   mul_r(l_strange, phmc_invmaxev, g_spinor_field[DUM_MATRIX+3], VOLUME/2);
   return;
 }
+
+/******************************************
+ *
+ * This is the implementation of 
+ *
+ *  Q_tau1_ndpsi_add/sub_Ishift =  ( M +/- I z_k )
+ *
+ *  with M = Qhat(2x2) tau_1   and z_k from sqrt(g_shift) 
+ *
+ *
+ *  needed in the evaluation of the heatbath when 
+ *  the Rational approximation is used
+ *
+ *
+ * For details, see documentation and comments of the
+ * above mentioned routines
+ *
+ * k_charm and k_strange are the input fields
+ * l_* the output fields
+ *
+ * it acts only on the odd part or only
+ * on a half spinor
+ ******************************************/
+
+
+void Qtm_tau1_ndpsi_add_Ishift(spinor * const l_strange, spinor * const l_charm,
+                               spinor * const k_strange, spinor * const k_charm) {
+
+  Q_tau1_sub_const_ndpsi(l_strange,l_charm,k_strange,k_charm,-I*sqrt(g_shift),1.,phmc_invmaxev);
+
+  return;
+}
+
+void Qtm_tau1_ndpsi_sub_Ishift(spinor * const l_strange, spinor * const l_charm,
+                               spinor * const k_strange, spinor * const k_charm) {
+
+  Q_tau1_sub_const_ndpsi(l_strange,l_charm,k_strange,k_charm, I*sqrt(g_shift),1.,phmc_invmaxev);
+
+  return;
+}
+
+void Qsw_tau1_ndpsi_add_Ishift(spinor * const l_strange, spinor * const l_charm,
+                               spinor * const k_strange, spinor * const k_charm) {
+
+  Qsw_tau1_sub_const_ndpsi(l_strange,l_charm,k_strange,k_charm,-I*sqrt(g_shift),1.,phmc_invmaxev);
+
+  return;
+}
+
+void Qsw_tau1_ndpsi_sub_Ishift(spinor * const l_strange, spinor * const l_charm,
+                               spinor * const k_strange, spinor * const k_charm) {
+
+  Qsw_tau1_sub_const_ndpsi(l_strange,l_charm,k_strange,k_charm, I*sqrt(g_shift),1.,phmc_invmaxev);
+
+  return;
+}
+
 
 /******************************************
  *
@@ -237,6 +363,14 @@ void Qtm_pm_ndpsi(spinor * const l_strange, spinor * const l_charm,
   return;
 }
 
+void Qtm_pm_ndpsi_shift(spinor * const l_strange, spinor * const l_charm,
+                       spinor * const k_strange, spinor * const k_charm) {
+  Qtm_pm_ndpsi(l_strange,l_charm,k_strange,k_charm);  
+  assign_add_mul_r( l_strange, k_strange, g_shift, VOLUME/2 );
+  assign_add_mul_r( l_charm, k_charm, g_shift, VOLUME/2 );
+  return;
+}
+
 void Qsw_pm_ndpsi(spinor * const l_strange, spinor * const l_charm,
 		  spinor * const k_strange, spinor * const k_charm) {
 
@@ -284,6 +418,15 @@ void Qsw_pm_ndpsi(spinor * const l_strange, spinor * const l_charm,
   return;
 }
 
+void Qsw_pm_ndpsi_shift(spinor * const l_strange, spinor * const l_charm,
+                       spinor * const k_strange, spinor * const k_charm) {
+  Qsw_pm_ndpsi(l_strange,l_charm,k_strange,k_charm);
+  
+  assign_add_mul_r( l_strange, k_strange, g_shift, VOLUME/2 );
+  assign_add_mul_r( l_charm, k_charm, g_shift, VOLUME/2 );
+
+  return;
+}
 
 
 /******************************************
@@ -343,7 +486,7 @@ void Q_tau1_sub_const_ndpsi(spinor * const l_strange, spinor * const l_charm,
   /* by the constant  phmc_Cpol  */
   /* which renders the polynomial in monomials  */
   /* identical to the polynomial a la clenshaw */;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel for private(r) private(s) private(phi1)
 #endif
   for(int ix = 0; ix < (VOLUME/2); ix++){
@@ -411,7 +554,7 @@ void Qsw_tau1_sub_const_ndpsi(spinor * const l_strange, spinor * const l_charm,
   /* by the constant  phmc_Cpol  */
   /* which renders the polynomial in monomials  */
   /* identical to the polynomial a la clenshaw */;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel for private(r) private(s) private(phi1)
 #endif
   for(int ix = 0; ix < (VOLUME/2); ix++){
@@ -598,7 +741,7 @@ void mul_one_pm_itau2(spinor * const p, spinor * const q,
 
 void mul_one_pm_iconst(spinor * const l, spinor * const k, 
 		       const double mu_, const int sign_) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
@@ -611,7 +754,7 @@ void mul_one_pm_iconst(spinor * const l, spinor * const k,
   }
 
   /************ loop over all lattice sites ************/
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for(unsigned int ix = 0; ix < (VOLUME/2); ++ix){
@@ -628,7 +771,7 @@ void mul_one_pm_iconst(spinor * const l, spinor * const k,
     _vector_assign(r->s3, phi1);
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 
@@ -639,7 +782,7 @@ void mul_one_pm_iconst(spinor * const l, spinor * const k,
 void M_ee_inv_ndpsi(spinor * const l_s, spinor * const l_c, 
 		    spinor * const k_s, spinor * const k_c,
 		    const double mu, const double eps) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
@@ -647,7 +790,7 @@ void M_ee_inv_ndpsi(spinor * const l_s, spinor * const l_c,
   spinor *r_s, *r_c, *s_s, *s_c;
   su3_vector ALIGN phi1, phi2;
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for(unsigned int ix = 0; ix < (VOLUME/2); ++ix){
@@ -686,7 +829,7 @@ void M_ee_inv_ndpsi(spinor * const l_s, spinor * const l_c,
 
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 
@@ -699,14 +842,14 @@ void M_oo_sub_g5_ndpsi(spinor * const l_s, spinor * const l_c,
 		       spinor * const k_s, spinor * const k_c,
 		       spinor * const j_s, spinor * const j_c,
 		       const double mu, const double eps) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
   spinor *r_s, *r_c, *s_s, *s_c, *t_s, *t_c;
   su3_vector ALIGN phi1, phi2;
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for(unsigned int ix = 0; ix < (VOLUME/2); ++ix){
@@ -746,7 +889,7 @@ void M_oo_sub_g5_ndpsi(spinor * const l_s, spinor * const l_c,
     _vector_sub(r_c->s3, t_c->s3, phi2);
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 
@@ -818,7 +961,7 @@ void Qtm_pm_sub_const_nrm_psi(spinor * const l, spinor * const k,
 
 
   /************ loop over all lattice sites ************/
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel for private(ix) private(r) private(s) private(phi1)
 #endif
   for(ix = 0; ix < (VOLUME/2); ix++){

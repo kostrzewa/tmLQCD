@@ -27,6 +27,12 @@
 #ifndef _TMLQCD_H
 #define _TMLQCD_H
 
+#include "tmlqcd_config.h"
+
+#ifdef TM_USE_MPI
+#include <mpi.h>
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -39,18 +45,28 @@ extern "C"
   typedef struct {
     unsigned int nproc, nproc_t, nproc_x, nproc_y, nproc_z, cart_id, proc_id, time_rank, omp_num_threads;
     unsigned int proc_coords[4];
+#ifdef TM_USE_MPI
+    MPI_Comm cart_grid;
+#else
+    int cart_grid;
+#endif
   } tmLQCD_mpi_params;
 
-  int tmLQCD_invert_init(int argc, char *argv[], const int verbose);
+  int tmLQCD_invert_init(int argc, char *argv[], const int verbose, const int external_id);
   int tmLQCD_read_gauge(const int nconfig);
   int tmLQCD_invert(double * const propagator, double * const source,
 		    const int op_id, const int write_prop);
   int tmLQCD_finalise();
 
-  int tmLQCD_get_gauge_field_pointer(double * gf);
+  int tmLQCD_get_gauge_field_pointer(double ** gf);
   int tmLQCD_get_mpi_params(tmLQCD_mpi_params * params);
   int tmLQCD_get_lat_params(tmLQCD_lat_params * params);
-  
+
+#ifdef TM_USE_QUDA
+  int invert_quda_direct(double * const propgator, double * const source,
+                    const int op_id);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

@@ -32,6 +32,7 @@ COMPILE = ${CC} $(DEFS) ${INCLUDES} ${CFLAGS}
 LIBRARIES = libmonomial
 libmonomial_TARGETS =  nddetratio_monomial monomial det_monomial detratio_monomial \
 	gauge_monomial ndpoly_monomial clover_trlog_monomial cloverdet_monomial cloverdetratio_monomial \
+	cloverdetratio_rwmonomial \
 	clovernd_trlog_monomial poly_monomial cloverndpoly_monomial moment_energy \
 	ndrat_monomial ndratcor_monomial rat_monomial ratcor_monomial monitor_forces
 
@@ -62,10 +63,10 @@ include ${top_srcdir}/Makefile.global
 
 # rule to compile objects
 
-${libmonomial_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${libmonomial_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${OPTARGS} -c $<
 
-${libmonomial_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${libmonomial_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${SOPTARGS} -c $<
 
 # rule to make libmonomial

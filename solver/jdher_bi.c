@@ -41,7 +41,7 @@
  **************************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <limits.h>
 #include <float.h>
@@ -50,7 +50,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 #endif
 #include "global.h"

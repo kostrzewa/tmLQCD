@@ -73,7 +73,8 @@ libio_TARGETS = utils_engineering \
 		eospinor_write \
 		eospinor_read \
 		io_cm \
-		deri_write_stdout spinor_write_stdout sw_write_stdout
+		deri_write_stdout spinor_write_stdout sw_write_stdout \
+		gauge_write_luscher_binary
 
 libio_OBJECTS = $(addsuffix .o, ${libio_TARGETS})
 
@@ -99,7 +100,7 @@ include ${top_srcdir}/Makefile.global
 
 # rule to compile objects
 
-%.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+%.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) -c $<
 
 

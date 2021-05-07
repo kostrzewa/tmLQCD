@@ -25,6 +25,8 @@
 #include "su3spinor.h"
 #include "hamiltonian_field.h"
 #include "rational/rational.h"
+#include "solver/solver_params.h"
+#include "misc_types.h"
 
 #define DET 0
 #define DETRATIO 1
@@ -47,6 +49,8 @@
 #define RATCOR 18
 #define CLOVERRAT 19
 #define CLOVERRATCOR 20
+#define CLOVERDETRATIORW 21
+#define NDCLOVERDETRATIO 22
 
 #define max_no_monomials 30
 
@@ -60,6 +64,7 @@ typedef struct {
   int even_odd_flag;
   int rngrepro;
   int solver;
+  
   int iter0, iter1, iter2;
   int csg_N, csg_N2;
   int csg_n, csg_n2;
@@ -82,6 +87,7 @@ typedef struct {
   double epsilon;
   double forceprec;
   double accprec;
+  solver_params_t solver_params;
   /* force normalisation */
   double forcefactor;
   /* some book-keeping */
@@ -116,6 +122,7 @@ typedef struct {
   void (*derivativefunction) (const int no, hamiltonian_field_t * const hf);
   /* the operator definitions */
   void (*Qsq) (spinor * const, spinor * const);
+  void (*Qsq32) (spinor32 * const, spinor32 * const);  
   void (*Qp) (spinor * const, spinor * const);
   void (*Qm) (spinor * const, spinor * const);
 } monomial;
@@ -131,6 +138,7 @@ typedef struct {
 #include "monomial/clovernd_trlog_monomial.h"
 #include "monomial/cloverdet_monomial.h"
 #include "monomial/cloverdetratio_monomial.h"
+#include "monomial/cloverdetratio_rwmonomial.h"
 #include "monomial/cloverndpoly_monomial.h"
 #include "monomial/ndrat_monomial.h"
 #include "monomial/rat_monomial.h"
@@ -163,5 +171,8 @@ int init_poly_monomial(const int V,const int id);
 void dummy_derivative(const int id, hamiltonian_field_t * const hf);
 void dummy_heatbath(const int id, hamiltonian_field_t * const hf);
 double dummy_acc(const int id, hamiltonian_field_t * const hf);
+
+void mnl_set_globals(const int id);
+void mnl_backup_restore_globals(const backup_restore_t mode);
 
 #endif

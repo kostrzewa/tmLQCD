@@ -25,11 +25,11 @@
  * Action of a Dirac operator (Frezzotti-Rossi BSM toy model) on a bispinor field
  *
  *******************************************************************************/
-
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 
+#ifdef TM_USE_BSM
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -37,7 +37,7 @@
 #include "su3.h"
 #include "sse.h"
 #include "boundary.h"
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include "xchange/xchange.h"
 #endif
 #include "update_backward_gauge.h"
@@ -47,12 +47,60 @@
 #include "buffers/utils.h"
 #include "linalg_eo.h"
 
+static inline void tm3_add(bispinor * const out, const bispinor * const in, const double sign)
+{  
+  /*out+=s*i\gamma_5 \tau_3 mu3 *in
+   * sign>0 for D+i\gamma_5\tau_3
+   * sign<0 for D_dag-i\gamma_5\tau_3
+   */
+  double s = +1.;
+  if(sign < 0) s = -1.;
+  
+  // out_up += s * i \gamma_5 \mu3 * in_up
+  _vector_add_i_mul(out->sp_up.s0,  s*mu03_BSM, in->sp_up.s0);
+  _vector_add_i_mul(out->sp_up.s1,  s*mu03_BSM, in->sp_up.s1);
+  _vector_add_i_mul(out->sp_up.s2, -s*mu03_BSM, in->sp_up.s2);
+  _vector_add_i_mul(out->sp_up.s3, -s*mu03_BSM, in->sp_up.s3);
+  
+  
+  // out_dn +=- s * i \gamma_5 \mu3 * in_dn
+  _vector_add_i_mul(out->sp_dn.s0, -s*mu03_BSM, in->sp_dn.s0);
+  _vector_add_i_mul(out->sp_dn.s1, -s*mu03_BSM, in->sp_dn.s1);
+  _vector_add_i_mul(out->sp_dn.s2,  s*mu03_BSM, in->sp_dn.s2);
+  _vector_add_i_mul(out->sp_dn.s3,  s*mu03_BSM, in->sp_dn.s3);
+  
+}
+static inline void tm1_add(bispinor * const out, const bispinor * const in, const double sign)
+{  
+  /*out+=s*i\gamma_5 \tau_1 mu1 *in
+   * sign>0 for D+i\gamma_5\tau_1
+   * sign<0 for D_dag-i\gamma_5\tau_1
+   */
+  double s = +1.;
+  if(sign < 0) s = -1.;
+  
+  // out_up += s * i \gamma_5 \mu1 * in_dn
+  _vector_add_i_mul(out->sp_up.s0,  s*mu01_BSM, in->sp_dn.s0);
+  _vector_add_i_mul(out->sp_up.s1,  s*mu01_BSM, in->sp_dn.s1);
+  _vector_add_i_mul(out->sp_up.s2, -s*mu01_BSM, in->sp_dn.s2);
+  _vector_add_i_mul(out->sp_up.s3, -s*mu01_BSM, in->sp_dn.s3);
+  
+  
+  // out_dn += s * i \gamma_5 \mu1 * in_up
+  _vector_add_i_mul(out->sp_dn.s0,  s*mu01_BSM, in->sp_up.s0);
+  _vector_add_i_mul(out->sp_dn.s1,  s*mu01_BSM, in->sp_up.s1);
+  _vector_add_i_mul(out->sp_dn.s2, -s*mu01_BSM, in->sp_up.s2);
+  _vector_add_i_mul(out->sp_dn.s3, -s*mu01_BSM, in->sp_up.s3);
+  
+}
+
+
 void Fadd(bispinor * const out, const bispinor * const in, const scalar * const phi, const double c, const double sign) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static spinor tmp;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
   
@@ -126,11 +174,11 @@ void Fadd(bispinor * const out, const bispinor * const in, const scalar * const 
 static inline void bispinor_times_phase_times_u(bispinor * restrict const us, const _Complex double phase,
 						su3 const * restrict const u, bispinor const * restrict const s)
 {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -164,11 +212,11 @@ static inline void bispinor_times_phase_times_u(bispinor * restrict const us, co
 static inline void bispinor_times_phase_times_inverse_u(bispinor * restrict const us, const _Complex double phase,
 							su3 const * restrict const u, bispinor const * restrict const s)
 {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -208,11 +256,11 @@ static inline void bispinor_times_phase_times_inverse_u(bispinor * restrict cons
 static inline void p0add_gamma(bispinor * restrict const tmpr , bispinor const * restrict const s,
                          su3 const * restrict const u, const int inv, const _Complex double phase) {
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static bispinor us;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -241,11 +289,11 @@ static inline void p0add_gamma(bispinor * restrict const tmpr , bispinor const *
 
 static inline void p1add_gamma(bispinor * restrict const tmpr, bispinor const * restrict const s,
                          su3 const * restrict const u, const int inv, const _Complex double phase) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static bispinor us;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -272,11 +320,11 @@ static inline void p1add_gamma(bispinor * restrict const tmpr, bispinor const * 
 
 static inline void p2add_gamma(bispinor * restrict const tmpr, bispinor const * restrict const s,
                          su3 const * restrict const u, const int inv, const _Complex double phase) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static bispinor us;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -302,11 +350,11 @@ static inline void p2add_gamma(bispinor * restrict const tmpr, bispinor const * 
 
 static inline void p3add_gamma(bispinor * restrict const tmpr, bispinor const * restrict const s,
                          su3 const * restrict const u, const int inv, const _Complex double phase) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static bispinor us;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -335,11 +383,11 @@ static inline void padd_F(bispinor * restrict const tmpr , bispinor const * rest
                          su3 const * restrict const u, const int inv, const _Complex double phase,
                          const double phaseF, const scalar * const phi,
                          const double sign) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static bispinor us;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -371,11 +419,11 @@ void D_psi_BSM2m(bispinor * const P, bispinor * const Q){
     update_backward_gauge(g_gauge_field);
   }
 #endif
-#ifdef MPI
+#ifdef TM_USE_MPI
   generic_exchange(Q, sizeof(bispinor));
 #endif
         
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
@@ -396,7 +444,7 @@ void D_psi_BSM2m(bispinor * const P, bispinor * const Q){
     c_phase_33=conj(phase_33);
 
 /************************ loop over all lattice sites *************************/
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
     for (ix=0;ix<VOLUME;ix++)
@@ -548,9 +596,16 @@ void D_psi_BSM2m(bispinor * const P, bispinor * const Q){
          _su3d_times_su3d(tempuu,*um,*up);uu=&tempuu;
         padd_F(rr, sm, uu, 0, c_phase_33, -0.125*rho_BSM, phim[3], +1.);
  
-        
+  	 // tmpr+=i\gamma_5\tau_1 mu1 *Q 
+        if( fabs(mu01_BSM) > 1.e-10 )
+            tm1_add(rr, s, 1);
+    
+       // tmpr+=i\gamma_5\tau_3 mu3 *Q 
+        if( fabs(mu03_BSM) > 1.e-10 )
+            tm3_add(rr, s, 1);
+
       }
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 }
@@ -568,11 +623,11 @@ void D_psi_dagger_BSM2m(bispinor * const P, bispinor * const Q){
     update_backward_gauge(g_gauge_field);
   }
 #endif
-#ifdef MPI
+#ifdef TM_USE_MPI
   generic_exchange(Q, sizeof(bispinor));
 #endif
         
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
@@ -595,7 +650,7 @@ void D_psi_dagger_BSM2m(bispinor * const P, bispinor * const Q){
 
     /************************ loop over all lattice sites *************************/
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
     for (ix=0;ix<VOLUME;ix++)
@@ -746,9 +801,18 @@ void D_psi_dagger_BSM2m(bispinor * const P, bispinor * const Q){
         sm = (bispinor *) Q +iy;
         _su3d_times_su3d(tempuu,*um,*up);uu=&tempuu;
         padd_F(rr, sm, uu, 0, c_phase_33, -0.125*rho_BSM, phim[3], -1.);
+        
+       // tmpr+=i\gamma_5\tau_1 mu1 *Q 
+        if( fabs(mu01_BSM) > 1.e-10 )
+            tm1_add(rr, s, -1);
+    
+       // tmpr+=i\gamma_5\tau_3 mu3 *Q 
+        if( fabs(mu03_BSM) > 1.e-10 )
+            tm3_add(rr, s, -1);
 
     }
-#ifdef OMP
+
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 }
@@ -765,4 +829,4 @@ void Q2_psi_BSM2m(bispinor * const P, bispinor * const Q){
   }
 
 }
-
+#endif

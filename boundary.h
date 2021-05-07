@@ -23,7 +23,10 @@
 #include "su3.h"
 
 extern _Complex double ka0, ka1, ka2, ka3;
+extern _Complex double phase_0, phase_1, phase_2, phase_3;
+#ifdef TM_USE_BSM
 extern _Complex double phase_0, phase_1, phase_2, phase_3, phase_00, phase_11, phase_22, phase_33;
+#endif
 void boundary(const double kappa);
 
 #endif

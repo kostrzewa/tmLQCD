@@ -42,6 +42,11 @@ typedef struct
    _Complex double c00, c01, c02, c10, c11, c12, c20, c21, c22;
 } su3;
 
+typedef struct 
+{
+   _Complex float c00, c01, c02, c10, c11, c12, c20, c21, c22;
+} su3_32;
+
 typedef struct
 {
    _Complex double c0,c1,c2;
@@ -56,6 +61,11 @@ typedef struct
 {
    su3_vector s0,s1,s2,s3;
 } spinor;
+
+typedef struct
+{
+   su3_vector32 s0,s1,s2,s3;
+} spinor32;
 
 typedef struct
 {
@@ -123,6 +133,13 @@ typedef double scalar;
    _vector_assign((r).s2,(s).s2);\
    _vector_assign((r).s3,(s).s3);
 
+#define _spinor_add_assign(r,s) \
+   _vector_add_assign((r).s0,(s).s0);\
+   _vector_add_assign((r).s1,(s).s1);\
+   _vector_add_assign((r).s2,(s).s2);\
+   _vector_add_assign((r).s3,(s).s3);
+
+
 #define _vector_norm_square(r) \
    conj((r).c0) * (r).c0 + conj((r).c1) * (r).c1 + conj((r).c2) * (r).c2
    
@@ -140,6 +157,12 @@ typedef double scalar;
   (r).c0 += (c) * (s).c0;			\
   (r).c1 += (c) * (s).c1;			\
   (r).c2 += (c) * (s).c2;
+
+#define _vector_sub_mul(r,c,s)                  \
+  (r).c0 -= (c) * (s).c0;                       \
+  (r).c1 -= (c) * (s).c1;                       \
+  (r).c2 -= (c) * (s).c2;
+
 
 #define _spinor_add_mul(r,c,s)                  \
   _vector_add_mul( (r).s0, (c), (s).s0);        \
@@ -165,6 +188,34 @@ typedef double scalar;
   (r).c0 += I*(c)*(s).c0; \
   (r).c1 += I*(c)*(s).c1; \
   (r).c2 += I*(c)*(s).c2;
+
+#define _vector_add_i_assign(r,s) \
+  (r).c0 += I*(s).c0; \
+  (r).c1 += I*(s).c1; \
+  (r).c2 += I*(s).c2;
+
+#define _vector_sub_i_assign(r,s) \
+  (r).c0 -= I*(s).c0; \
+  (r).c1 -= I*(s).c1; \
+  (r).c2 -= I*(s).c2;
+
+#define _vector_i_add_assign(r,s)               \
+  (r).c0 += I * (s).c0;                 \
+  (r).c1 += I * (s).c1;                 \
+  (r).c2 += I * (s).c2;
+
+
+#define _vector_i_sub_assign(r,s)               \
+  (r).c0 -= I * (s).c0;                         \
+  (r).c1 -= I * (s).c1;                         \
+  (r).c2 -= I * (s).c2;
+
+
+#define _vector_sub_i_mul(r,c,s) \
+  (r).c0 -= I*(c)*(s).c0; \
+  (r).c1 -= I*(c)*(s).c1; \
+  (r).c2 -= I*(c)*(s).c2;
+
 
 #define _vector_i_mul(r,c,s) \
   (r).c0 = I*(c)*(s).c0; \
@@ -276,7 +327,7 @@ _sse_store(r);
   (r).c1 -= I * (s).c1;				\
   (r).c2 -= I * (s).c2;
 
-#define complex_times_vector(r,c,s)		\
+#define _complex_times_vector(r,c,s)		\
   (r).c0 = (c) * (s).c0;			\
   (r).c1 = (c) * (s).c1;			\
   (r).c2 = (c) * (s).c2;
@@ -397,6 +448,17 @@ _sse_store_up(r);
   (u).c20 = conj((v).c02);			\
   (u).c21 = conj((v).c12);			\
   (u).c22 = conj((v).c22); 
+
+#define _su3_transpose(u,v)			\
+  (u).c00 = ((v).c00);			\
+  (u).c01 = ((v).c10);			\
+  (u).c02 = ((v).c20);			\
+  (u).c10 = ((v).c01);			\
+  (u).c11 = ((v).c11);			\
+  (u).c12 = ((v).c21);			\
+  (u).c20 = ((v).c02);			\
+  (u).c21 = ((v).c12);			\
+  (u).c22 = ((v).c22);
 
 #define _itimes_su3(u,v)			\
   (u).c00 = I * (v).c00;			\
@@ -663,6 +725,11 @@ _sse_store_up(r);
 
 #endif
 
+#define _su3_minus_const_times_im_trace_su3(w,c,v) \
+  (w).c00 -= I*c*(cimag((v).c00) + cimag((v).c11) + cimag((v).c22)); \
+  (w).c11 -= I*c*(cimag((v).c00) + cimag((v).c11) + cimag((v).c22)); \
+  (w).c22 -= I*c*(cimag((v).c00) + cimag((v).c11) + cimag((v).c22)); 
+
 #define _trace_su3_times_su3d(x,v,w)	\
   x =   (v).c00 * conj((w).c00)		\
       + (v).c01 * conj((w).c01)		\
@@ -684,12 +751,7 @@ _sse_store_up(r);
     + (v).c20 * (w).c02			\
     + (v).c21 * (w).c12			\
     + (v).c22 * (w).c22;
-
-#define _complex_times_vector(x, c, y)	\
-   x.c0 = (c) * (y).c0;			\
-   x.c1 = (c) * (y).c1;			\
-   x.c2 = (c) * (y).c2;
-    
+ 
 #define _vector_tensor_vector(t,u,v)	\
   (t).c00 = (u).c0 * conj((v).c0);	\
   (t).c01 = (u).c0 * conj((v).c1);	\
@@ -724,6 +786,11 @@ _sse_store_up(r);
   (t).c21 = (u).c2 * conj((v).c1) + (w).c2 * conj((z).c1);	\
   (t).c22 = (u).c2 * conj((v).c2) + (w).c2 * conj((z).c2);
 
-
+#define _su3_add_equals_complex_identity(u, c) \
+  (u).c00 += (c); \
+  (u).c11 += (c); \
+  (u).c22 += (c);
 
 #endif
+
+

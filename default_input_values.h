@@ -50,13 +50,37 @@
 #define _default_g_mu1 0.0
 #define _default_g_mu2 0.0
 #define _default_g_mu3 0.0
+#define _default_g_shift 0.0
 #define _default_c_sw -1.0
 #define _default_g_beta 6.0
 #define _default_g_N_s 20
 #define _default_g_dflgcr_flag 0
+#define _default_little_evenodd 0
+#define _default_usePL 0
+#define _default_little_solver 0
+#define _default_little_gmres_m_parameter 50
+#define _default_little_solver_max_iter 20
+#define _default_little_solver_low_prec 1.0e-2
+#define _default_little_solver_high_prec 1.0e-10
+
+#define _default_Msap_precon 1
+#define _default_NiterMsap 3
+#define _default_NcycleMsap 2
+#define _default_kappa_Msap -1.
+#define _default_mu_Msap -20.
+
+#define _default_NiterMsap_dflgen 4
+#define _default_NcycleMsap_dflgen 4
+#define _default_NsmoothMsap_dflgen 2
+#define _default_kappa_dflgen -1.
+#define _default_mu_dflgen -20.
+#define _default_kappa_dfl -1.
+#define _default_mu_dfl -20.
+
 #define _default_random_seed 123456
 #define _default_rlxd_level 1
-#define _default_solver_flag 1
+#define _default_solver_flag 1 // this is CG (see solver/solver_types.h)
+#define _default_nd_solver_flag 15 // this is CGMMSND (see solver/solver_types.h)
 #define _default_startoption 0
 #define _default_Ntherm 0
 #define _default_Nmeas 1
@@ -77,9 +101,35 @@
 #define _default_X1 0.
 #define _default_X2 0.
 #define _default_X3 0.
+#ifdef TM_USE_BSM
+#define _default_csw_BSM 1.0
 #define _default_rho_BSM 1.0
 #define _default_eta_BSM 1.0
 #define _default_m0_BSM  0.0
+#define _default_c5phi_BSM 0.0
+#define _default_mu03_BSM  0.0
+#define _default_r_BSM 0.0
+#define _default_mu01_BSM  0.0
+#define _default_smearedcorrelator_BSM 0
+#define _default_propagatorsonthefly_BSM 0
+#define _default_densitydensity_BSM 0
+#define _default_densitydensity_s0s0_BSM 0
+#define _default_densitydensity_sxsx_BSM 0
+#define _default_diraccurrentdensity_BSM 0
+#define _default_wilsoncurrentdensitypr1_BSM 0
+#define _default_wilsoncurrentdensitypr2_BSM 0
+#define _default_wilsoncurrentdensitypl1_BSM 0
+#define _default_axialcurrentdensity_BSM 0
+#define _default_pdensityvectordensity_BSM 0
+#define _default_vectorcurrentdensity_BSM 0
+#define _default_axialcurrentcurrent_BSM 0
+
+#define _default_vectordensitydensity_BSM 0
+#define _default_wilsoncurrentdensitypl2_BSM 0
+#define _default_vectorcurrentcurrent_BSM 0
+#define _default_giancarlo_BSM 0
+#define _default_timesmearcorrelator_BSM 0
+#endif
 #define _default_max_solver_iterations 5000
 #define _default_solver_precision 1.e-15
 #define _default_g_rgi_C1 0.
@@ -107,9 +157,12 @@
 #define _default_scalar_precision_read_flag 64
 #define _default_scalar_precision_write_flag 64
 #define _default_g_disable_IO_checks 0
-#define _default_prop_precision_flag 32
+#define _default_prop_precision_flag 64
+#define _default_write_prop_flag 1
 #define _default_reproduce_randomnumber_flag 1
 #define _default_g_sloppy_precision_flag 0
+#define _default_operator_sloppy_precision_flag 0
+#define _default_compression_type 18
 #define _default_stout_rho 0.1
 #define _default_rho 0.
 #define _default_rho2 0.
@@ -165,9 +218,41 @@
 /* default GPU values */
 #define _default_device_num -1
 
+#define _default_min_innersolver_it 10
+#define _default_max_mms_shifts 6
+
 /* default OpenMP values */
 #define _default_omp_num_threads 0
 
+/* default mixed precision solver values */
+#define _default_mixcg_innereps 5.0e-5
+#define _default_mixcg_maxinnersolverit 5000
+
 #define _default_use_preconditioning 0
+
+#define _default_external_inverter 0
+
+#define _default_subprocess_flag 0
+#define _default_lowmem_flag 0
+
+/* default input values for QUDA interface */
+/* These follow the recommendations of https://github.com/lattice/quda/wiki/Multigrid-Solver */
+#define _default_quda_mg_n_level 2
+#define _default_quda_mg_n_vec 24
+#define _default_quda_mg_mu_factor 8.0
+#define _default_quda_mg_setup_tol 1e-6
+#define _default_quda_mg_setup_maxiter 1000
+#define _default_quda_mg_coarse_solver_tol 0.25
+#define _default_quda_mg_coarse_solver_maxiter 75
+#define _default_quda_mg_smoother_tol 0.25
+#define _default_quda_mg_nu_pre 0
+#define _default_quda_mg_nu_post 4
+#define _default_quda_mg_omega 0.85
+#define _default_quda_mg_enable_size_three_blocks 0
+#define _default_quda_mg_reset_setup_threshold 0.0
+
+// gradient flow measurement step size and maximum flow time
+#define _default_gf_eps 0.01
+#define _default_gf_tmax 9.99
 
 #endif

@@ -32,7 +32,7 @@
  *******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -751,7 +751,7 @@ void geometry(){
   int startvaluey = 0;
   int startvaluez = 0;
   int * xeven;
-#if defined MPI
+#if defined TM_USE_MPI
   int isp, *ones, *oneS, *oneL;
   int lsliceS, lsliceL, check_struct_zt;
 #endif
@@ -885,7 +885,11 @@ void geometry(){
   }
 
   for(j=0; j<4; j++){  // NEW GIUPDNEO
-    for(ix=0;ix< (VOLUME+RAND);ix++){
+    for(ix = 0; ix < (VOLUME)/2; ix++){
+      g_iup_eo[ix][j]=g_lexic2eosub[g_iup[g_eo2lexic[ix]][j]];
+      g_idn_eo[ix][j]=g_lexic2eosub[g_idn[g_eo2lexic[ix]][j]];
+    }
+    for(ix = (VOLUME+RAND)/2; ix < VOLUME+RAND/2; ix++){
       g_iup_eo[ix][j]=g_lexic2eosub[g_iup[g_eo2lexic[ix]][j]];
       g_idn_eo[ix][j]=g_lexic2eosub[g_idn[g_eo2lexic[ix]][j]];
     }
@@ -1455,8 +1459,9 @@ void geometry(){
     }
 #endif
   }
-
-  Hopping_Matrix_Indices();
+  if(!lowmem_flag){
+    Hopping_Matrix_Indices();
+  }
 
   free(xeven);
 }

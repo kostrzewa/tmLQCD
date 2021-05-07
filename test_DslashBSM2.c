@@ -27,18 +27,18 @@
 * otherwise a simple application of Dslash on a spinor will be tested.
 *
 *******************************************************************************/
-#define TEST_INVERSION 0
+#define TEST_INVERSION 1
 
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
 #include <string.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 # ifdef HAVE_LIBLEMON
 #	include <io/params.h>
@@ -56,19 +56,26 @@
 #include "start.h"
 #include "boundary.h"
 #include "io/gauge.h"
+#ifdef TM_USE_BSM
 #include "io/scalar.h"
+#endif
 #include "global.h"
 #include "getopt.h"
 #include "xchange/xchange.h"
 #include "init/init.h"
+#ifdef TM_USE_BSM
 #include "init/init_scalar_field.h"
 #include "init/init_bsm_2hop_lookup.h"
+#include "buffers/utils_nogauge.h"
+#endif
 #include "test/check_geometry.h"
+#ifdef TM_USE_BSM
 #include "operator/D_psi_BSM2b.h"
 #include "operator/D_psi_BSM2m.h"
 #include "operator/D_psi_BSM2f.h"
-#include "solver/eigenvalues_krylov.h"
 #include "operator/M_psi.h"
+#endif
+#include "solver/eigenvalues_krylov.h"
 #include "mpi_init.h"
 #include "measure_gauge_action.h"
 #include "buffers/utils.h"
@@ -99,7 +106,11 @@
 static void usage();
 static void process_args(int argc, char *argv[], char ** input_filename, char ** filename);
 static void set_default_filenames(char ** input_filename, char ** filename);
-
+#ifndef TM_USE_BSM
+int main(int argc,char *argv[]){
+  printf("Works only with BSM operators switched on\n");
+}
+#else
 int main(int argc,char *argv[])
 {
   FILE *parameterfile = NULL;
@@ -121,7 +132,7 @@ int main(int argc,char *argv[])
 		even_odd_flag=0;
 		printf("# WARNING: even_odd_flag will be ignored (not supported here).\n");
 	}
-	int j,j_max,k,k_max = 2;
+	int j;
 //	_Complex double * drvsc;
 
 #ifdef HAVE_LIBLEMON
@@ -129,15 +140,12 @@ int main(int argc,char *argv[])
 #endif
 	int status = 0;
 
-	static double t1,t2,dt,sdt,dts,qdt,sqdt;
-	double antioptaway=0.0;
+	static double t1;
 
-#ifdef MPI
-	static double dt2;
+#ifdef TM_USE_MPI
 
 	DUM_DERI = 6;
-	DUM_SOLVER = DUM_DERI+2;
-	DUM_MATRIX = DUM_SOLVER+6;
+	DUM_MATRIX = DUM_DERI+2;
 	NO_OF_SPINORFIELDS = DUM_MATRIX+2;
 
 	MPI_Init(&argc, &argv);
@@ -165,7 +173,7 @@ int main(int argc,char *argv[])
 		printf("parameter  m0_BSM set to %f\n",  m0_BSM);
 	}
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 	init_openmp();
 #endif
 
@@ -206,7 +214,7 @@ int main(int argc,char *argv[])
 		printf("# The code was compiled for persistent MPI calls (halfspinor only)\n");
 #endif
 #endif
-#ifdef MPI
+#ifdef TM_USE_MPI
 	#ifdef _NON_BLOCKING
 		printf("# The code was compiled for non-blocking MPI calls (spinor and gauge)\n");
 	#endif
@@ -312,7 +320,7 @@ int main(int argc,char *argv[])
 	}
 
 	// read scalar field
-if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
+	if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
 		for( int s=0; s<numbScalarFields; s++ )
 			ranlxd(g_scalar_field[s], VOLUME);
 	}
@@ -336,7 +344,7 @@ if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
 		}
 	}
 
-#ifdef MPI
+#ifdef TM_USE_MPI
     xchange_gauge(g_gauge_field);
 #endif
 
@@ -351,7 +359,7 @@ if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
     }
    
 
-#ifdef MPI
+#ifdef TM_USE_MPI
         // printf("Starting generic exchange routines for the scalar field\n");
 	for( int s=0; s<numbScalarFields; s++ )
             generic_exchange_nogauge(g_scalar_field[s], sizeof(scalar));
@@ -359,8 +367,6 @@ if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
 #endif
 
 	/*initialize the bispinor fields*/
-	j_max=1;
-	sdt=0.;
   // w/
 	unit_spinor_field_lexic( (spinor*)(g_bispinor_field[4]));//, 	  reproduce_randomnumber_flag, RN_GAUSS);
 	unit_spinor_field_lexic( (spinor*)(g_bispinor_field[4])+VOLUME);//, reproduce_randomnumber_flag, RN_GAUSS);
@@ -380,10 +386,12 @@ if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
 		printf("\n# square norm of the source: ||w||^2 = %e\n\n", squarenorm);
 		fflush(stdout);
 	}
-
+//initialize BSM2f operator
+ init_D_psi_BSM2f();
 ////  eigmax();
   double t_F;
 	/* inversion needs to be done first because it uses loads of the g_bispinor_fields internally */
+
 #if TEST_INVERSION
   if(g_proc_id==1)
     printf("Testing inversion\n");
@@ -400,14 +408,14 @@ if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
   /* now apply the operators to the same bispinor field and do various comparisons */
 
   // Feri's operator
-#ifdef MPI
+#ifdef TM_USE_MPI
   MPI_Barrier(MPI_COMM_WORLD);
 #endif
   t_F = 0.0;
   t1 = gettime();
   D_psi_BSM2f(g_bispinor_field[0], g_bispinor_field[4]);
   t1 = gettime() - t1;
-#ifdef MPI
+#ifdef TM_USE_MPI
 	MPI_Allreduce (&t1, &t_F, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #else
   t_F = t1;
@@ -449,7 +457,7 @@ if( strcmp(scalar_input_filename, "create_random_scalarfield") == 0 ) {
   free_geometry_indices();
   free_bispinor_field();
   free_scalar_field();
-#ifdef MPI
+#ifdef TM_USE_MPI
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 #endif
@@ -506,4 +514,4 @@ static void set_default_filenames(char ** input_filename, char ** filename) {
     strcpy(*filename,"output");
   }
 }
-
+#endif

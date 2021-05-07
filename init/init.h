@@ -25,15 +25,19 @@
 #include "init/init_dirac_halfspinor.h"
 #include "init/init_gauge_field.h"
 #include "init/init_gauge_tmp.h"
+#include "init/init_gauge_fg.h"
 #include "init/init_geometry_indices.h"
+#ifdef TM_USE_BSM
 #include "init/init_scalar_field.h"
+#endif
+#include "init/init_parallel.h"
 #ifdef WITHLAP
 #  include "init/init_jacobi_field.h"
 #endif
 #include "init/init_moment_field.h"
 #include "init/init_spinor_field.h"
 #include "init/init_stout_smear_vars.h"
-#ifdef OMP
+#ifdef TM_USE_OMP
 # include <omp.h>
 # include "init/init_omp_accumulators.h"
 # include "init/init_openmp.h"

@@ -23,7 +23,14 @@
 #include "su3.h"
 
 /* Assign (*R) = (*S) */
+void bispinor_assign( bispinor * const R, bispinor * const S, const int N);
 void assign(spinor * const R, spinor * const S, const int N);
+void assign_32(spinor32 * const R, spinor32 * const S, const int N);
 void assign_su3vect(su3_vector * const R, su3_vector * const S, const int N);
+void assign_complex_to_bispinor(bispinor * const R, _Complex double * const S, const int N); //N is the size of S
+void assign_bispinor_to_complex(_Complex double * const R, bispinor * const S, const int N); //N is the size of S
+
+void assign_complex_to_spinor(spinor * const R, _Complex double * const S, const int N); //N is the size of S
+void assign_spinor_to_complex(_Complex double * const R, spinor * const S, const int N); //N is the size of S
 
 #endif

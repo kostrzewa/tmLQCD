@@ -34,9 +34,9 @@
 
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
-#ifdef OMP
+#ifdef TM_USE_OMP
 # include <omp.h>
 #endif
 #include <stdlib.h>
@@ -50,14 +50,14 @@
 /* S and P inputs, R output */
 void compact(bispinor * const R, spinor * const S, spinor * const P)
 { 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
   spinor *r,*s;
   spinor *u,*t;
   
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for (int ix = 0; ix < VOLUME; ix++){
@@ -102,7 +102,7 @@ void compact(bispinor * const R, spinor * const S, spinor * const P)
     u->s3.c2 = t->s3.c2;
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
   
@@ -132,7 +132,7 @@ void compact(bispinor * const R, spinor * const S, spinor * const P)
 
 /* R input , S and P outputs */
 void decompact(spinor * const S, spinor * const P, bispinor * const R){
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
@@ -140,7 +140,7 @@ void decompact(spinor * const S, spinor * const P, bispinor * const R){
   spinor *r,*s;
   spinor *u,*t;
   
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for (int ix = 0; ix < VOLUME; ix++)
@@ -185,7 +185,7 @@ void decompact(spinor * const S, spinor * const P, bispinor * const R){
     u->s3.c2 = t->s3.c2;
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 

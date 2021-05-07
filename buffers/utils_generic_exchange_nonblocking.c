@@ -18,9 +18,9 @@
  * along with tmLQCD.  If not, see <http://www.gnu.org/licenses/>.
  ***********************************************************************/
 #include "utils_nonblocking.ih"
-
-#ifndef MPI /*Let's deal with this case once and for all*/
-void generic_exchange_direction_nonblocking(void *field_in, int bytes_per_site, int direction, MPI_Request *inreq, int* counter)
+#if defined TM_USE_BSM
+#ifndef TM_USE_MPI /*Let's deal with this case once and for all*/
+void generic_exchange_direction_nonblocking(void *field_in, int bytes_per_site, int direction, int* counter)
 {}
 #else /* MPI */
 void generic_exchange_direction_nonblocking(void *field_in, int bytes_per_site, int direction, MPI_Request *inreq, int* counter)
@@ -170,4 +170,4 @@ void generic_exchange_direction_nonblocking(void *field_in, int bytes_per_site, 
   }
 }
 #endif /* MPI */
-
+#endif /* TM_USE_BSM */

@@ -19,7 +19,7 @@
 
 #include"lime.h"
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -27,7 +27,7 @@
 #include <time.h>
 #include <string.h>
 #include <signal.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 #include <mpi.h>
 #endif
 #include "global.h"
@@ -36,7 +36,7 @@
 #include "geometry_eo.h"
 #include "start.h"
 #include "measure_gauge_action.h"
-#ifdef MPI
+#ifdef TM_USE_MPI
 #include "xchange/xchange.h"
 #endif
 #include "read_input.h"
@@ -85,7 +85,7 @@ int main(int argc,char *argv[]) {
 #ifdef _GAUGE_COPY
   int kb=0;
 #endif
-#ifdef MPI
+#ifdef TM_USE_MPI
   double atime=0., etime=0.;
 #endif
 #ifdef _KOJAK_INST
@@ -95,8 +95,7 @@ int main(int argc,char *argv[]) {
 
   DUM_DERI = 6;
   /* DUM_DERI + 2 is enough (not 7) */
-  DUM_SOLVER = DUM_DERI+2;
-  DUM_MATRIX = DUM_SOLVER+6;
+  DUM_MATRIX = DUM_DERI+8;
   /* DUM_MATRIX + 2 is enough (not 6) */
   NO_OF_SPINORFIELDS = DUM_MATRIX+2;
 
@@ -104,7 +103,7 @@ int main(int argc,char *argv[]) {
   g_use_clover_flag = 0;
   g_nr_of_psf = 1;
 
-#ifdef MPI
+#ifdef TM_USE_MPI
   MPI_Init(&argc, &argv);
 #endif
 
@@ -146,7 +145,7 @@ int main(int argc,char *argv[]) {
 
   g_dbw2rand = 0;
 
-#ifndef MPI
+#ifndef TM_USE_MPI
   g_dbw2rand = 0;
 #endif
 
@@ -219,7 +218,7 @@ int main(int argc,char *argv[]) {
     if (g_proc_id == 0){
       printf("done!\n"); fflush(stdout);
     }
-#ifdef MPI
+#ifdef TM_USE_MPI
     xchange_gauge(g_gauge_field);
 #endif
 
@@ -253,7 +252,8 @@ int main(int argc,char *argv[]) {
     if(even_odd_flag) {
       i = invert_eo(g_spinor_field[2], g_spinor_field[3], g_spinor_field[0], g_spinor_field[1], 
 		    solver_precision, max_solver_iterations, solver_flag, g_relative_precision_flag,
-		    sub_evs_cg_flag, even_odd_flag, 0, NULL, -1);
+		    sub_evs_cg_flag, even_odd_flag, 0, NULL, -1,
+            NO_EXT_INV, SLOPPY_DOUBLE, NO_COMPRESSION);
       convert_eo_to_lexic(g_spinor_field[DUM_DERI+1], g_spinor_field[2], g_spinor_field[3]);
     }
 
@@ -294,7 +294,7 @@ int main(int argc,char *argv[]) {
     nstore+=Nsave;
   }
 
-#ifdef MPI
+#ifdef TM_USE_MPI
   MPI_Finalize();
 #endif
   free_gauge_field();

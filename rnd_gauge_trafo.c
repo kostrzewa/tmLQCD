@@ -23,7 +23,7 @@
  *******************************************************************************/
 
 #if HAVE_CONFIG_H
-#include<config.h>
+#include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,7 +46,7 @@ void rnd_gauge_trafo(const int repro, su3 ** const gf){
 
   random_gauge_field(repro, gauge_trafo);
 
-#ifdef MPI
+#ifdef TM_USE_MPI
   xchange_gauge(gauge_trafo);
 #endif
 

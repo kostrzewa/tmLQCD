@@ -32,12 +32,12 @@
  *******************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 #include <mpi.h>
 #endif
 #include "global.h"
@@ -131,7 +131,7 @@ double measure_rectangles() {
 /*   fprintf(debugfile,"###\n"); */
   fclose(debugfile);
   ga=(kc+ks)/3.0;
-#ifdef MPI
+#ifdef TM_USE_MPI
   MPI_Allreduce(&ga, &gas, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   return gas;
 #else

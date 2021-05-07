@@ -22,7 +22,7 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -38,19 +38,24 @@
 #include "xchange/xchange.h"
 #include "hamiltonian_field.h"
 #include "update_gauge.h"
-
-
+#include "init/init_gauge_field.h"
+#ifdef DDalphaAMG
+#include "DDalphaAMG_interface.h"
+#endif
 /*******************************************************
  *
  * Updates the gauge field corresponding to the momenta
  *
  *******************************************************/
 
-
 void update_gauge(const double step, hamiltonian_field_t * const hf) {
   double atime, etime;
   atime = gettime();
-#ifdef OMP
+#ifdef DDalphaAMG
+  MG_update_gauge(step);
+#endif
+
+#ifdef TM_USE_OMP
 #define static
 #pragma omp parallel
   {
@@ -64,11 +69,11 @@ void update_gauge(const double step, hamiltonian_field_t * const hf) {
 #pragma pomp inst begin(updategauge)
 #endif
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for(i = 0; i < VOLUME; i++) { 
@@ -80,24 +85,31 @@ void update_gauge(const double step, hamiltonian_field_t * const hf) {
       exposu3(&w,&deriv);
       restoresu3(&v,&w);
       _su3_times_su3(w, v, *z);
-      _su3_assign(*z, w);
+      restoresu3(&v,&w);
+      _su3_assign(*z, v);
     }
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP parallel closing brace */
 #endif
   
-#ifdef MPI
+#ifdef TM_USE_MPI
   /* for parallelization */
   xchange_gauge(hf->gaugefield);
 #endif
+  
+  /*Convert to a 32 bit gauge field, after xchange*/
+  convert_32_gauge_field(g_gauge_field_32, hf->gaugefield, VOLUMEPLUSRAND + g_dbw2rand);
+  
   /*
    * The backward copy of the gauge field
    * is not updated here!
    */
   hf->update_gauge_copy = 1;
   g_update_gauge_copy = 1;
+  g_update_gauge_copy_32 = 1;
+
   etime = gettime();
   if(g_debug_level > 1 && g_proc_id == 0) {
     printf("# Time gauge update: %e s\n", etime-atime); 

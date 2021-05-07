@@ -40,17 +40,17 @@ int write_eospinor(spinor * const s, char * filename,
   int coords[4];
   char message[500];
   n_uint64_t bytes;
-#ifdef MPI
+#ifdef TM_USE_MPI
   MPI_Status mpistatus;
 #endif
 
   if(g_cart_id == 0){  
     if(g_kappa > 0. || g_kappa < 0.) {
-      sprintf(message,"\n eigenvalue = %e\n prec = %e\n conf nr = %d\n beta = %f, kappa = %f, mu = %f, c2_rec = %f\n hmcversion = %s", 
+      sprintf(message,"\n eigenvalue = %e\n prec = %e\n conf nr = %d\n beta = %.12f, kappa = %.12f, mu = %.12f, c2_rec = %f\n hmcversion = %s", 
 	      evalue, prec, nstore, g_beta, g_kappa, g_mu/2./g_kappa, g_rgi_C1, PACKAGE_VERSION);
     }
     else {
-      sprintf(message,"\n eigenvalue = %e\n prec = %e\n conf nr = %d\n beta = %f, kappa = %f, 2*kappa*mu = %f, c2_rec = %f\n hmcversion = %s", 
+      sprintf(message,"\n eigenvalue = %e\n prec = %e\n conf nr = %d\n beta = %.12f, kappa = %.12f, 2*kappa*mu = %.12f, c2_rec = %f\n hmcversion = %s", 
 	      evalue, prec, nstore, g_beta, g_kappa, g_mu, g_rgi_C1, PACKAGE_VERSION);
     }
     bytes = strlen( message );
@@ -62,7 +62,7 @@ int write_eospinor(spinor * const s, char * filename,
     limewriter = limeCreateWriter( ofs );
     if(limewriter == (LimeWriter*)NULL) {
       fprintf(stderr, "LIME error in file %s for writing!\n Aboring...\n", filename);
-#ifdef MPI
+#ifdef TM_USE_MPI
       MPI_Abort(MPI_COMM_WORLD, 1);
       MPI_Finalize();
 #endif
@@ -73,7 +73,7 @@ int write_eospinor(spinor * const s, char * filename,
     status = limeWriteRecordHeader( limeheader, limewriter);
     if(status < 0 ) {
       fprintf(stderr, "LIME write header (xlf-info) error %d\n", status);
-#ifdef MPI
+#ifdef TM_USE_MPI
       MPI_Abort(MPI_COMM_WORLD, 1);
       MPI_Finalize();
 #endif
@@ -88,7 +88,7 @@ int write_eospinor(spinor * const s, char * filename,
     status = limeWriteRecordHeader( limeheader, limewriter);
     if(status < 0 ) {
       fprintf(stderr, "LIME write header (eospinor-binary-data) error %d\n", status);
-#ifdef MPI
+#ifdef TM_USE_MPI
       MPI_Abort(MPI_COMM_WORLD, 1);
       MPI_Finalize();
 #endif
@@ -110,7 +110,7 @@ int write_eospinor(spinor * const s, char * filename,
 	for(t0 = 0; t0 < T*g_nproc_t; t0++){
 	  t = t0 - T*g_proc_coords[0];
 	  coords[0] = t0 / T;
-#ifdef MPI
+#ifdef TM_USE_MPI
 	  MPI_Cart_rank(g_cart_grid, coords, &id);
 #endif
 	  i = g_lexic2eosub[ g_ipt[t][X][Y][Z] ];
@@ -121,7 +121,7 @@ int write_eospinor(spinor * const s, char * filename,
 		be_to_cpu_assign(tmp, s + i , sizeof(spinor)/8);
 		status = limeWriteRecordData((void*)tmp, &bytes, limewriter);
 	      }
-#ifdef MPI
+#ifdef TM_USE_MPI
 	      else {
 		MPI_Recv(tmp, sizeof(spinor)/8, MPI_DOUBLE, id, tag, g_cart_grid, &mpistatus);
 		status = limeWriteRecordData((void*)tmp, &bytes, limewriter);
@@ -129,14 +129,14 @@ int write_eospinor(spinor * const s, char * filename,
 #endif
 	      if(status < 0 ) {
 		fprintf(stderr, "LIME write error %d\n", status);
-#ifdef MPI
+#ifdef TM_USE_MPI
 		MPI_Abort(MPI_COMM_WORLD, 1);
 		MPI_Finalize();
 #endif
 		exit(500);
 	      }
 	    }
-#ifdef MPI
+#ifdef TM_USE_MPI
 	    else {
 	      if(g_cart_id == id) {
 		be_to_cpu_assign(tmp, s + i, sizeof(spinor)/8);
@@ -147,7 +147,7 @@ int write_eospinor(spinor * const s, char * filename,
 	    tag++;
 	  }
 	}
-#ifdef MPI
+#ifdef TM_USE_MPI
  	MPI_Barrier(g_cart_grid); 
 #endif
 	tag=0;

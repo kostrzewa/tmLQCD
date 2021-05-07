@@ -39,7 +39,7 @@
  *****************************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 
 #include <stdlib.h>
@@ -49,7 +49,7 @@
 #include "su3.h"
 #include "sse.h"
 #include "boundary.h"
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include "xchange/xchange.h"
 #endif
 #include "update_backward_gauge.h"
@@ -57,7 +57,7 @@
 #include "operator/D_psi.h"
 #include "solver/dirac_operator_eigenvectors.h"
 
-
+#ifdef TM_USE_BSM
 #include "init/init_scalar_field.h"
 
 
@@ -69,7 +69,7 @@ void scalarderivatives(_Complex double * drvsc){
   /**  questa instruzione l'ho messa nel MAIN:
   drvsc = malloc(18*VOLUMEPLUSRAND*sizeof(_Complex double)); **/
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for (ix=0;ix<VOLUME;ix++)
@@ -80,7 +80,7 @@ void scalarderivatives(_Complex double * drvsc){
 
   }
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for (ix=0;ix<VOLUME;ix++)
@@ -125,12 +125,12 @@ void scalarderivatives(_Complex double * drvsc){
 
 static inline void nohopp(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, _Complex double const * restrict const xs, int row) {
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -175,12 +175,12 @@ static inline void nohopp(spinor * restrict const tmpr, spinor const * restrict 
 
 static inline void pp0add(spinor * restrict const tmpr , spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -231,12 +231,12 @@ static inline void pp0add(spinor * restrict const tmpr , spinor const * restrict
 }
 
 static inline void mm0add(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -287,12 +287,12 @@ static inline void mm0add(spinor * restrict const tmpr, spinor const * restrict 
 }
 
 static inline void pp1add(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -343,12 +343,12 @@ static inline void pp1add(spinor * restrict const tmpr, spinor const * restrict 
 }
 
 static inline void mm1add(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -399,12 +399,12 @@ static inline void mm1add(spinor * restrict const tmpr, spinor const * restrict 
 }
 
 static inline void pp2add(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -455,12 +455,12 @@ static inline void pp2add(spinor * restrict const tmpr, spinor const * restrict 
 }
 
 static inline void mm2add(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -511,12 +511,12 @@ static inline void mm2add(spinor * restrict const tmpr, spinor const * restrict 
 }
 
 static inline void pp3add(spinor * restrict const tmpr, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -567,12 +567,12 @@ static inline void pp3add(spinor * restrict const tmpr, spinor const * restrict 
 }
 
 static inline void mm3addandstore(spinor * restrict const r, spinor const * restrict const s, spinor const * restrict const t, su3 const * restrict const u, const _Complex double phase, spinor const * restrict const tmpr, _Complex double const * restrict const xs, int row) {
-#ifdef OMP
+#ifdef TM_USE_OMP
 #define static
 #endif
   static su3_vector chi, psi;
   static _Complex double fact1, fact2;
-#ifdef OMP
+#ifdef TM_USE_OMP
 #undef static
 #endif
 
@@ -648,7 +648,7 @@ static inline void mm3addandstore(spinor * restrict const r, spinor const * rest
   /**  xchange_lexicfield(drvsc);  THIS CAN BE DANGEROUS ?!?   **/
 # endif
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp parallel
   {
 #endif
@@ -673,7 +673,7 @@ static inline void mm3addandstore(spinor * restrict const r, spinor const * rest
 
   /************************ loop over all lattice sites *******************/
 
-#ifdef OMP
+#ifdef TM_USE_OMP
 #pragma omp for
 #endif
   for (ix=0;ix<VOLUME;ix++)
@@ -780,7 +780,7 @@ static inline void mm3addandstore(spinor * restrict const r, spinor const * rest
   }
 
 
-#ifdef OMP
+#ifdef TM_USE_OMP
   } /* OpenMP closing brace */
 #endif
 }
@@ -788,3 +788,4 @@ static inline void mm3addandstore(spinor * restrict const r, spinor const * rest
 
 
 
+#endif

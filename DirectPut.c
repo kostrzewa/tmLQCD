@@ -18,16 +18,16 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-#  include<config.h>
+#  include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdint.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 #  include <mpi.h>
 #endif
-#ifdef OMP
+#ifdef TM_USE_OMP
 #  include <omp.h>
 #endif
 #include "global.h"

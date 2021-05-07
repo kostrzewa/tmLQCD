@@ -21,7 +21,7 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #ifdef SSE
 # undef SSE
@@ -39,10 +39,10 @@
 #include <math.h>
 #include <errno.h>
 #include <time.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 #endif
-#ifdef OMP
+#ifdef TM_USE_OMP
 # include <omp.h>
 #endif
 #include "global.h"
@@ -98,12 +98,43 @@ void copy_6x6(_Complex double a[6][6], const _Complex double b[6][6]) {
   return;
 }
 
+void scale_real_6x6(_Complex double a[6][6], const double scale){
+  for(int i = 0; i < 6; i++) {
+    for(int j = 0; j < 6; j++) {
+      a[i][j] *= scale;
+    }
+  }
+  return;
+}
 
+void scale_cplx_6x6(_Complex double a[6][6], const _Complex double scale){
+  for(int i = 0; i < 6; i++) {
+    for(int j = 0; j < 6; j++) {
+      a[i][j] *= scale;
+    }
+  }
+  return;
+}
 
+void one_6x6(_Complex double a[6][6]){
+  memset((void*)(&a[0][0]), 0, 36*sizeof(_Complex double));
+  for(int i = 0; i < 6; i++){
+    a[i][i] = 1.0;
+  }
+}
 
-
-
-
+void print_6x6(_Complex double a[6][6], const char * const text){
+  if(g_proc_id==0){
+    printf("%s\n",text);
+    for(int i = 0; i < 6; i++){
+      for(int j = 0; j < 6; j++){
+        printf("(%+.2e %+.2e) ", creal(a[i][j]), cimag(a[i][j]));
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+}
 
 su3 * _swp;
 

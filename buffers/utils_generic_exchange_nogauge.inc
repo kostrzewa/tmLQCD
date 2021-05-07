@@ -1,3 +1,4 @@
+#if defined TM_USE_BSM
 #     if (defined PARALLELT || defined PARALLELXT || defined PARALLELXYT || defined PARALLELXYZT)
        MPI_Isend(buffer[0],          1, slice_T_cont_type, g_nb_t_dn, 83,
 	    g_cart_grid, &request[cntr]);
@@ -72,3 +73,4 @@
       cntr=cntr+2;
       MPI_Waitall(cntr, request, status);
 #    endif
+#endif

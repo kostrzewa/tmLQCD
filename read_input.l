@@ -47,7 +47,8 @@ EQL {SPC}*={SPC}*
 
 %{
 #ifdef HAVE_CONFIG_H
-#  include<config.h>
+#  include<tmlqcd_config.h>
+
 #endif
 #include<stdlib.h>
 #include<stdio.h>
@@ -57,13 +58,18 @@ EQL {SPC}*={SPC}*
 #include"read_input.h"
 #include"default_input_values.h"
 #include"monomial/monomial.h"
-#include"measurements.h"
+#include"solver/solver_types.h"
+#include"meas/measurements.h"
 #include"integrator.h"
 #include"operator.h"
 #include"phmc.h"
 #include<io/params.h>
+#include "qphix_types.h"
+#include "quda_types.h"
 
-inline void rmQuotes(char *str){
+// some general parsing helpers
+
+static inline void rmQuotes(char *str){
   char* strsave=str;
 
   while(*str== ' ' || *str == '\t') str++;
@@ -74,6 +80,34 @@ inline void rmQuotes(char *str){
 
   while( !( *str=='\0' || *str == '\"' || *str == '\n') ) *(strsave++)=*(str++);
   *strsave='\0';
+}
+
+static inline void fltlist_tokenize(const char * const str, char * const paramname, const int paramname_length){
+  char error_message[200];
+  char * token = (char*)NULL;
+  // the first token is the parameter name, we will return it, 
+  // but first check if tokenization was successful
+  token = strtok(str, "\n\t =,\\");
+  if( (void*)token == NULL ){
+    snprintf(error_message, 200, "Unable to parse '%s' in fltlist_tokenize!\n", paramname);
+    yy_fatal_error(error_message);
+  } else {
+    // return what we parsed
+    snprintf(paramname, paramname_length, "%s", token);
+  }
+}
+
+static inline double fltlist_next_token(int * const list_end){
+  double retval;
+  char * token = strtok(NULL," =,\t");
+  if( (void*)token == NULL ){
+    *list_end = 1;
+    return(0.0);
+  } else {
+    *list_end = 0;
+    sscanf(token,"%lf",&retval);
+    return(retval);
+  }
 }
 
   /* Name of the parsing routine */
@@ -166,6 +200,13 @@ inline void rmQuotes(char *str){
   int innersolver_precision_check_abs;
   int innersolver_precision_check_rel;
 
+  int max_mms_shifts;
+  int use_mixed_mms;
+  int min_innersolver_it;
+
+  double mixcg_innereps;
+  int mixcg_maxinnersolverit;
+
   int propagator_comparison;
   int nb_cores;
 
@@ -178,11 +219,60 @@ inline void rmQuotes(char *str){
 
   int dfl_field_iter;
   int dfl_poly_iter;
+  double kappa_dflgen;
+  double mu_dflgen;
+  double kappa_dfl;
+  double mu_dfl;
+  double kappa_Msap;
+  double mu_Msap;
 
   int use_preconditioning;
 
   int have_bsm_op;
+  /* macro control over read_input.l is poor. In order to support compilation without
+   * a given external library, we need to have these declared here as a dummy.
+   * Note that no parameters will actually be passed, the input file reader will
+   * terminate the program if one attempts to set the parameters but tmLQCD has
+   * been compiled without the interface in question. */
+#ifdef TM_USE_QUDA
+  extern tm_QudaParams_t quda_input;
+#else
+  tm_QudaParams_t quda_input;
+#endif
 
+#ifdef TM_USE_QPHIX
+  extern tm_QPhiXParams_t qphix_input;
+#else
+  tm_QPhiXParams_t qphix_input;
+#endif
+
+// specific parsing helpers
+  static inline void parse_quda_mg_blocksize(const char * const input, const int dim){
+    char paramname[100];
+    char error_message[200];
+    int list_end = 0;
+    int level = 0;
+    int blocksize = 0;
+    
+    fltlist_tokenize(input, paramname, 100);
+    blocksize = (int)fltlist_next_token(&list_end);
+    while( list_end != 1 ){
+      if( level >= (QUDA_MAX_MG_LEVEL-1) ){
+        snprintf(error_message, 200, "Exceeded maximum number of levels (%d-1) parsing %s!\n", QUDA_MAX_MG_LEVEL, paramname);
+        yy_fatal_error(error_message);
+      }
+      
+      quda_input.mg_blocksize[level][dim] = blocksize;
+      if(myverbose){ 
+        printf("  %s, level %d set to %d line %d\n", paramname,
+                level, quda_input.mg_blocksize[level][dim], line_of_file);
+      }
+      
+      level++;
+      blocksize = (int)fltlist_next_token(&list_end);
+    }
+  }
+  
 %}
 
 %option never-interactive
@@ -202,9 +292,11 @@ inline void rmQuotes(char *str){
 %x GAUGEINPUTFILE
 %x SCALARINPUTFILE
 %x GAUGERPREC
+%x SCALARRPREC
+%x SCALARWPREC
 %x GAUGEWPREC
 %x DSBLIOCHECK
-%x DFLSP
+%x DSBLSRCIOCHECK
 %x PRECON
 %x WRITECP
 %x CPINT
@@ -227,6 +319,7 @@ inline void rmQuotes(char *str){
 %X READSOURCE
 %x SOURCEFORMAT
 %x SOURCEFILE
+%x PROPFILE
 %x SOURCETS
 %x SOURCETYPE
 %x PROPSPLIT
@@ -260,6 +353,7 @@ inline void rmQuotes(char *str){
 %x PIONNORMMEAS
 %x PLOOP
 %x ORIENTEDPLAQUETTESMEAS
+%x GRADIENTFLOWMEAS
 
 %x REWEIGH
 %x REWSAMPLES
@@ -269,6 +363,12 @@ inline void rmQuotes(char *str){
 
 %x GPU
 %x INITGPU
+
+%x DEFLATION
+%x INITDEFLATION
+
+%x MULTIGRID
+%x INITMULTIGRID
 
 %x INITOPERATOR
 %x TMOP
@@ -288,6 +388,7 @@ inline void rmQuotes(char *str){
 %x DETMONOMIAL
 %x CLDETMONOMIAL
 %x CLDETRATMONOMIAL
+%x CLDETRATRWMONOMIAL
 %x GAUGEMONOMIAL
 %x NDPOLYMONOMIAL
 %x NDRATMONOMIAL
@@ -297,12 +398,16 @@ inline void rmQuotes(char *str){
 %x CLRATCORMONOMIAL
 %x NDCLRATMONOMIAL
 %x NDRATCORMONOMIAL
+%x NDDETRATMONOMIAL
+%x NDCLDETRATMONOMIAL
 %x NDCLRATCORMONOMIAL
 %x POLYMONOMIAL
 %x CLPOLYMONOMIAL
 %x MNAME
 %x MCSTR
 %x MSOLVER
+%x RATMSOLVER
+%x NDMSOLVER
 %x GTYPE
 
 %x COMMENT
@@ -323,12 +428,21 @@ inline void rmQuotes(char *str){
 
 %x PRECONDITIONING
 
+%x QUDAINVERTER
+%x QPHIXINVERTER
+%x COMPRESSION
 
+%x MIXCGEPS
+%x MIXCGIT
 
+%x LOWMEM
+%x SUBPROCESS 
 
+%x INITEXTERNALINVERTER
 
 %%
 ^SourceFilename{EQL}               BEGIN(SOURCEFILE);
+^PropagatorFilename{EQL}           BEGIN(PROPFILE);
 ^T{EQL}                            BEGIN(TT);
 ^L{EQL}                            BEGIN(LL);
 ^LX{EQL}                           BEGIN(LLX);
@@ -376,7 +490,11 @@ inline void rmQuotes(char *str){
 ^GMRESDRNrEv{EQL}                  BEGIN(GMRESDRNEV);
 ^GaugeConfigReadPrecision{EQL}     BEGIN(GAUGERPREC);
 ^GaugeConfigWritePrecision{EQL}    BEGIN(GAUGEWPREC);
+^ScalarConfigReadPrecision{EQL}    BEGIN(SCALARRPREC);
+^ScalarConfigWritePrecision{EQL}   BEGIN(SCALARWPREC);
 ^DisableIOChecks{EQL}              BEGIN(DSBLIOCHECK);
+^DisableGaugeIOChecks{EQL}         BEGIN(DSBLIOCHECK);
+^DisableSourceIOChecks{EQL}        BEGIN(DSBLSRCIOCHECK);
 ^ReproduceRandomNumbers{EQL}       BEGIN(REPRORND);
 ^UseSloppyPrecision{EQL}           BEGIN(SLOPPYPREC);
 ^UseStoutSmearing{EQL}             BEGIN(USESTOUT);
@@ -389,7 +507,6 @@ inline void rmQuotes(char *str){
 ^WritePropagatorFormat{EQL}        BEGIN(WRPROPFLAG);
 ^PropagatorType{EQL}               BEGIN(WRPROPFLAG);
 ^RanluxdLevel{EQL}                 BEGIN(RLXDLEVEL);
-^DeflationSubspaceDimension{EQL}   BEGIN(DFLSP);
 ^GCRPreconditioner{EQL}            BEGIN(PRECON);
 ^ComputeReweightingFactor{EQL}     BEGIN(REWEIGH);
 ^NoReweightingSamples{EQL}         BEGIN(REWSAMPLES);
@@ -398,6 +515,7 @@ inline void rmQuotes(char *str){
 ^NoSamples{EQL}                    BEGIN(NOSAMPLES);
 ^SplittedPropagator{EQL}           BEGIN(PROPSPLIT);
 ^UsePreconditioning{EQL}           BEGIN(PRECONDITIONING);
+^UseCompression{EQL}               BEGIN(COMPRESSION);
 
 ^BeginMeasurement{SPC}+            BEGIN(INITMEASUREMENT);
 ^ComputeModeNumber{EQL}            BEGIN(COMPUTEMN);
@@ -407,6 +525,8 @@ inline void rmQuotes(char *str){
 ^BeginMonomial{SPC}+               BEGIN(INITMONOMIAL);
 ^BeginInt                          BEGIN(INITINTEGRATOR);
 ^BeginOperator{SPC}+               BEGIN(INITOPERATOR);
+
+^BeginExternalInverter{SPC}+       BEGIN(INITEXTERNALINVERTER);
 
 ^PropagatorComparison{EQL}         BEGIN(PCOMP);
 ^NbCoresPerNode{EQL}               BEGIN(NBCORES);
@@ -422,10 +542,13 @@ inline void rmQuotes(char *str){
 ^DflPolyIter{EQL}                  BEGIN(DFLPOLYITER);
 
 ^BeginGPU                          BEGIN(INITGPU);
+^BeginDeflation		                 BEGIN(INITDEFLATION);
+^BeginDDalpha       	             BEGIN(INITMULTIGRID);
+^MixCGInnerEps{EQL}                BEGIN(MIXCGEPS);
+^MixCGMaxIter{EQL}                 BEGIN(MIXCGIT);
 
-
-
-
+^EnableLowmem{EQL}                 BEGIN(LOWMEM);
+^EnableSubprocess{EQL}             BEGIN(SUBPROCESS);
 
 
 <INITGPU>Init{SPC}* {
@@ -470,8 +593,249 @@ inline void rmQuotes(char *str){
       innersolver_precision_check_rel = a;
       if(myverbose) printf("  innersolver_precision_check_rel set to %d line %d\n", a, line_of_file);
   }
+  {SPC}*MinInnerSolverIterations{EQL}{DIGIT}+ {
+      sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+      min_innersolver_it = a;
+      if(myverbose) printf("  min_innersolver_it set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*MaxMmsShifts{EQL}{DIGIT}+ {
+      sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+      max_mms_shifts = a;
+      if(myverbose) printf("  max_mms_shifts set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*UseMixedMms{EQL}yes {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    use_mixed_mms = 1;
+    if(myverbose) printf("  Using mixed solver for smallest shifts\n");  }
+  {SPC}*UseMixedMms{EQL}no {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    use_mixed_mms = 0;
+    if(myverbose) printf("  Not using mixed solver for smallest shifts\n");
+  }
   EndGPUInit{SPC}* {
   if(myverbose) printf("GPU parsed in line %d\n\n", line_of_file);
+  BEGIN(0);
+  }
+}
+
+<INITDEFLATION>Init{SPC}* {
+ if(myverbose) printf("Initialising DEFLATION line %d\n", line_of_file); 
+ BEGIN(DEFLATION);
+ }
+<DEFLATION>{
+  {SPC}*DeflationSubspaceDimension{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    g_N_s = a;
+    if(myverbose) printf("Number of global approximate eigenvectors (deflation subspace dimension) set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*NiterMsap{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    NiterMsap = a;
+    if(myverbose) printf("NiterMsap for solver preconditioner set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*NcycleMsap{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    NcycleMsap = a;
+    if(myverbose) printf("NcycleMsap for solver preconditioner set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*KappaMsap{EQL}{FLT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    kappa_Msap = c;
+    if(myverbose) printf("kappa for Msap preconditioner set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*2KappaMuMsap{EQL}{FLT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mu_Msap = c;
+    if(myverbose) printf("2KappaMu for Msap preconditioner set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*NiterMsapSubspace{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    NiterMsap_dflgen = a;
+    if(myverbose) printf("NiterMsapDfl for subspace generation set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*NcycleMsapSubspace{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    NcycleMsap_dflgen = a;
+    if(myverbose) printf("NcycleMsapDfl for subspace generation set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*NsmoothSubspace{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    NsmoothMsap_dflgen = a;
+    if(myverbose) printf("NsmoothMsapDfl for subspace generation set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*LittleGMRESMParameter{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    little_gmres_m_parameter = a;
+    if(myverbose) printf("LittleGMRESMParameter set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*LittleSolverLowPrecision{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    little_solver_low_prec = c;
+    if(myverbose) printf("Low precision for little Dirac solver set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*LittleSolverHighPrecision{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    little_solver_high_prec = c;
+    if(myverbose) printf("High precision for little Dirac solver set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*LittleSolverMaxIter{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %d", name, &a);
+    little_solver_max_iter = a;
+    if(myverbose) printf("LittleSolverMaxIter set to %d line %d\n", a, line_of_file);
+  }
+  {SPC}*LittleSolver{EQL}(gcr|mcr|mr|fgmres) {
+    little_solver = 0;
+    if(myverbose) printf("Littlesolver set to gcr in line %d (currently no other solver available)\n", line_of_file);
+  }
+  {SPC}*useLittleLittleD{EQL}yes {
+    usePL = 1;
+    if(myverbose) printf("UsePL set to true line %d\n", line_of_file);
+  }
+  {SPC}*useLittleLittleD{EQL}no {
+    usePL = 0;
+    if(myverbose) printf("UsePL set to true line %d\n", line_of_file);
+  }
+  {SPC}*LittleEvenOdd{EQL}yes {
+    little_evenodd = 1;
+    if(myverbose) printf("LittleEvenOdd set to true line %d\n", line_of_file);
+  }
+  {SPC}*LittleEvenOdd{EQL}no {
+    little_evenodd = 0;
+    if(myverbose) printf("LittleEvenOdd set to true line %d\n", line_of_file);
+  }
+  {SPC}*KappaSubspace{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    kappa_dflgen = c;
+    if(myverbose) printf("kappa for subspace generation set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*2KappaMuSubspace{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mu_dflgen = c;
+    if(myverbose) printf("2KappaMu for subspace generation set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*kappa{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    kappa_dfl = c;
+    if(myverbose) printf("kappa for preconditioner set to %e line %d\n", c, line_of_file);
+  }
+  {SPC}*2KappaMu{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mu_dfl = c;
+    if(myverbose) printf("2KappaMu for preconditioner set to %e line %d\n", c, line_of_file);
+  }
+  EndDeflationInit{SPC}* {
+  if(myverbose) printf("DEFLATION parsed in line %d\n\n", line_of_file);
+  BEGIN(0);
+  }
+}
+
+<INITMULTIGRID>AMG{SPC}* {
+#ifdef DDalphaAMG
+ if(myverbose) printf("Initialising DDalphaAMG line %d\n", line_of_file); 
+ BEGIN(MULTIGRID);
+#else
+ printf("ERROR line %d: DDalphaAMG library not included\n", line_of_file);
+ exit(1);
+#endif
+ }
+<MULTIGRID>{
+  {SPC}*MGSetupIter{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_setup_iter=a;
+    if(myverbose) printf("  MG_Setup_Iter set to %d line %d operator %d\n", mg_setup_iter, line_of_file, current_operator);
+  }
+  {SPC}*MGCoarseSetupIter{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_coarse_setup_iter=a;
+    if(myverbose) printf("  MG_Coarse_Setup_Iter set to %d line %d operator %d\n", mg_coarse_setup_iter, line_of_file, current_operator);
+  }
+  {SPC}*MGNumberOfVectors{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_Nvec=a;
+    if(myverbose) printf("  MGNumberOfVectors set to %d line %d operator %d\n", mg_Nvec, line_of_file, current_operator);
+  }
+  {SPC}*MGNumberOfLevels{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_lvl=a;
+    if(myverbose) printf("  MGNumberOfLevels set to %d line %d operator %d\n", mg_lvl, line_of_file, current_operator);
+  }
+  {SPC}*MGBlockX{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_blk[3]=a;
+    if(myverbose) printf("  MGBlockX set to %d line %d operator %d\n", mg_blk[3], line_of_file, current_operator);
+  }
+  {SPC}*MGBlockY{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_blk[2]=a;
+    if(myverbose) printf("  MGBlockY set to %d line %d operator %d\n", mg_blk[2], line_of_file, current_operator);
+  }
+  {SPC}*MGBlockZ{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_blk[1]=a;
+    if(myverbose) printf("  MGBlockZ set to %d line %d operator %d\n", mg_blk[1], line_of_file, current_operator);
+  }
+  {SPC}*MGBlockT{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_blk[0]=a;
+    if(myverbose) printf("  MGBlockT set to %d line %d operator %d\n", mg_blk[0], line_of_file, current_operator);
+  }
+  {SPC}*MGSetup2KappaMu{EQL}{FLT}+ {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mg_setup_mu=c;
+    mg_setup_mu_set=1;
+    if(myverbose) printf("  MGSetup2KappaMu set to %f line %d operator %d\n", mg_setup_mu, line_of_file, current_operator);
+  }
+  {SPC}*MGCoarseMuFactor{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    mg_cmu_factor=c;
+    if(myverbose) printf("  MGCoarseMuFactor set to %f line %d operator %d\n", mg_cmu_factor, line_of_file, current_operator);
+  }
+  {SPC}*MGMixedPrecision{EQL}yes {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    mg_mixed_prec = 1;
+    if(myverbose) printf("  MGMixedPrecision set to YES line %d operator %d\n",  line_of_file, current_operator);
+  }
+  {SPC}*MGMixedPrecision{EQL}no {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    mg_mixed_prec = 0;
+    if(myverbose) printf("  MGMixedPrecision set to NO line %d operator %d\n",  line_of_file, current_operator);
+  }
+  {SPC}*MGdtauUpdate{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    mg_dtau_update=c;
+    if(myverbose) printf("  MGdtauUpdate set to %f line %d operator %d\n", mg_dtau_update, line_of_file, current_operator);
+  }
+  {SPC}*MGrhoUpdate{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    mg_rho_update=c;
+    if(myverbose) printf("  MG_rho_Update set to %f line %d operator %d\n", mg_rho_update, line_of_file, current_operator);
+  }
+  {SPC}*MGUpdateSetupIter{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_update_setup_iter=a;
+    if(myverbose) printf("  MG_Update_Setup_Iter set to %d line %d operator %d\n", mg_update_setup_iter, line_of_file, current_operator);
+  }
+  {SPC}*MGOMPNumThreads{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_omp_num_threads=a;
+    if(myverbose) printf("  MG_omp_num_threads set to %d line %d operator %d\n", mg_omp_num_threads, line_of_file, current_operator);
+  }
+  {SPC}*MGNumberOfShifts{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    mg_no_shifts=a;
+    // when the number of shifts is specified, mg_mss_mass must be set to zero!
+    mg_mms_mass=0;
+    if(myverbose) printf("  MG_Num_of_shifts set to %d line %d operator %d\n", mg_no_shifts, line_of_file, current_operator);
+  }
+  {SPC}*MGMMSMass{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    mg_mms_mass=c;
+    // when mg_mms_mass is specified, mg_no_shifts should be set to zero!
+    mg_no_shifts=0;
+    if(myverbose) printf("  MG_MMS_Mass set to %f line %d operator %d\n", mg_mms_mass, line_of_file, current_operator);
+  }
+  EndDDalphaAMG{SPC}* {
+  if(myverbose) printf("DDalphaAMG parsed in line %d\n\n", line_of_file);
   BEGIN(0);
   }
 }
@@ -515,7 +879,11 @@ inline void rmQuotes(char *str){
   else if(strcmp(yytext, "BSM2f")==0) {
     optr->type = BSM2f;
     have_bsm_op = 1;
-  }  
+  } 
+  else if(strcmp(yytext, "BSM3") == 0){
+    optr->type = BSM3;
+    have_bsm_op = 1;
+  } 
   else {
     fprintf(stderr, "Unknown operator type %s in line %d\n", yytext, line_of_file);
     exit(1);
@@ -562,6 +930,16 @@ inline void rmQuotes(char *str){
     PropInfo.precision = 64;
     if(myverbose) printf("  PropagatorPrecision set to 64 line %d operator %d\n", line_of_file, current_operator);
   }
+  {SPC}*WritePropagator{EQL}yes {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    optr->write_prop_flag = 1;
+    if(myverbose) printf("  WritePropagator set to YES line %d operator %d\n",  line_of_file, current_operator);
+  }
+  {SPC}*WritePropagator{EQL}no {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    optr->write_prop_flag = 0;
+    if(myverbose) printf("  WritePropagator set to NO line %d operator %d\n",  line_of_file, current_operator);
+  }
   {SPC}*SolverPrecision{EQL}{FLT} {
     sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
     optr->eps_sq = c;
@@ -578,6 +956,11 @@ inline void rmQuotes(char *str){
     sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
     optr->rel_prec = 0;
     if(myverbose) printf("  SolverRelativePrecision set to NO line %d operator %d\n",  line_of_file, current_operator);
+  }
+  {SPC}*mcgdelta{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z1] = %lf", name, &c);
+    (optr->solver_params).mcg_delta = c;
+    if(myverbose) printf("  mcg_delta set to %lf line %d operator %d\n", c, line_of_file, current_operator);
   }
   {SPC}*EigCGnrhs{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
@@ -607,19 +990,18 @@ inline void rmQuotes(char *str){
   {SPC}*EigCGtolsq1{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z1] = %lf", name, &c);
     (optr->solver_params).eigcg_tolsq1 = c;
-    if(myverbose) printf("  EigCGtolsq1 set to %lf line %d operator %d\n", a, line_of_file, current_operator);
+    if(myverbose) printf("  EigCGtolsq1 set to %lf line %d operator %d\n", c, line_of_file, current_operator);
   }
   {SPC}*EigCGrestolsq{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     (optr->solver_params).eigcg_restolsq = c;
-    if(myverbose) printf("  EigCGrestolsq set to %lf line %d operator %d\n", a, line_of_file, current_operator);
+    if(myverbose) printf("  EigCGrestolsq set to %lf line %d operator %d\n", c, line_of_file, current_operator);
   }
   {SPC}*EigCGRandGuessOpt{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
     (optr->solver_params).eigcg_rand_guess_opt = a;
     if(myverbose) printf("  EigCGrand_guess_opt set to %d line %d operator %d\n", a, line_of_file, current_operator);
-  }
-
+  }  
   {SPC}*ExtraMasses{EQL}{FLTLIST} {
     char * token = NULL;
     optr->no_extra_masses = 0;
@@ -697,20 +1079,191 @@ inline void rmQuotes(char *str){
     name_caller = YY_START; 
     BEGIN(BSMSOLVER);
   }
-  {SPC}*rho{EQL}{FLT} {
+  {SPC}*rhobsm{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     rho_BSM = c;
     if(myverbose != 0) printf("  BSM parameter rho set to %f\n", rho_BSM);
   }
-  {SPC}*eta{EQL}{FLT} {
+  {SPC}*etabsm{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     eta_BSM = c;
     if(myverbose != 0) printf("  BSM parameter eta set to %f\n", eta_BSM);
   }
-  {SPC}*m0{EQL}{FLT} {
+  {SPC}*m0bsm{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z0] = %lf", name, &c);
     m0_BSM = c;
     if(myverbose != 0) printf("  BSM parameter m0 set to %f\n", m0_BSM);
+  }
+  {SPC}*mu01bsm{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z01] = %lf", name, &c);
+    mu01_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter mu01 set to %f\n", mu01_BSM);
+  }
+  {SPC}*mu03bsm{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z0123] = %lf", name, &c);
+    mu03_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter mu03 set to %f\n", mu03_BSM);
+  }
+  {SPC}*c5phi{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z0123] = %lf", name, &c);
+    c5phi_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter c5phi set to %f\n", c5phi_BSM);
+  }
+  {SPC}*rbsm{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z0123] = %lf", name, &c);
+    r_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter r_bsm set to %f\n", r_BSM);
+  }
+  {SPC}*cswbsm{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z0123] = %lf", name, &c);
+    csw_BSM = c;
+    if(myverbose != 0) printf("  BSM parameter csw_bsm set to %f\n", csw_BSM);
+  }
+  {SPC}*propagatorsonthefly{EQL}yes {
+    propagatorsonthefly_BSM = 1;
+    if(myverbose != 0) printf("  BSM propagators are also computed for using them in the contractions  line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*propagatorsonthefly{EQL}no {
+    propagatorsonthefly_BSM = 0;
+    if(myverbose != 0) printf("  BSM propagators are read from the disk (default)  line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*smearingcorrelator{EQL}yes {
+    smearedcorrelator_BSM = 1;
+    if(myverbose != 0) printf("  In the BSM correlators smeared scalar fields are used (over the whole timeslice) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*smearingcorrelator{EQL}no {
+    smearedcorrelator_BSM = 0;
+    if(myverbose != 0) printf("  In the BSM smearing of the scalars in the correlators is switched off!! (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*densitydensity{EQL}yes {
+    if(myverbose) printf("  BSM density denstiy correlators are computed with nontrivial scalar line %d operator %d\n", line_of_file, current_operator);
+    densitydensity_BSM = 1;
+  }
+  {SPC}*densitydensity{EQL}no {
+    if(myverbose) printf("  BSM density denstiy correlators are not computed with nontrivial scalar line %d operator %d\n", line_of_file, current_operator);
+    densitydensity_BSM = 0;
+  }
+  {SPC}*densitydensitys0s0{EQL}yes {
+    densitydensity_s0s0_BSM = 1;
+    if(myverbose != 0) printf("  BSM density density s0s0,p0p0 are computed with trivial scalar fields line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*densitydensitys0s0{EQL}no {
+    densitydensity_s0s0_BSM = 0;
+    if(myverbose != 0) printf("  BSM density density s0s0,p0p0 are not computed with trivial scalar fields (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*densitydensitysxsx{EQL}yes {
+    densitydensity_sxsx_BSM = 1;
+    if(myverbose != 0) printf("  BSM density density ss and pp correlators with trivial scalar field are computed  line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*densitydensitysxsx{EQL}no {
+    densitydensity_sxsx_BSM = 0;
+    if(myverbose != 0) printf("  BSM density density ss and pp correlators with trivial scalar field are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*diraccurrentdensity{EQL}yes {
+    diraccurrentdensity_BSM = 1;
+    if(myverbose != 0) printf("  BSM naive (dirac) current  density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*diraccurrentdensity{EQL}no  {
+    diraccurrentdensity_BSM = 0;
+    if(myverbose != 0) printf("  BSM naive (dirac) current  density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityprfirstline{EQL}yes {
+    wilsoncurrentdensitypr1_BSM = 1;
+    if(myverbose != 0) printf("  BSM wilson (pr first line) current times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityprfirstline{EQL}no {
+    wilsoncurrentdensitypr1_BSM = 0;
+    if(myverbose != 0) printf("  BSM wilson (pr first line) current times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityprsecondline{EQL}yes {
+    wilsoncurrentdensitypr2_BSM = 1;
+    if(myverbose != 0) printf("  BSM wilson (pr second line) current times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityprsecondline{EQL}no {
+    wilsoncurrentdensitypr2_BSM = 0;
+    if(myverbose != 0) printf("  BSM wilson (pr second line) current times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityplfirstline{EQL}yes {
+    wilsoncurrentdensitypl1_BSM = 1;
+    if(myverbose != 0) printf("  BSM wilson (pl first line) current times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityplfirstline{EQL}no {
+    wilsoncurrentdensitypl1_BSM = 0;
+    if(myverbose != 0) printf("  BSM wilson (pl first line) current times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityplsecondline{EQL}yes {
+    wilsoncurrentdensitypl2_BSM = 1;
+    if(myverbose != 0) printf("  BSM wilson (pl second line) current times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*wilsoncurrentdensityplsecondline{EQL}no {
+    wilsoncurrentdensitypl2_BSM = 0;
+    if(myverbose != 0) printf("  BSM wilson (pl second line) current times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*currentV3currentV3{EQL}yes {
+    vectorcurrentcurrent_BSM = 1;
+    if(myverbose != 0) printf("  BSM extended vector current current V3 correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*currentV3currentV3{EQL}no {
+    vectorcurrentcurrent_BSM = 0;
+    if(myverbose != 0) printf("  BSM extended vector current current V3 correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*currentA1currentA1{EQL}yes {
+    axialcurrentcurrent_BSM = 1;
+    if(myverbose != 0) printf("  BSM extended axial current current A1 correlators are computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*currentA1currentA1{EQL}no {
+    axialcurrentcurrent_BSM = 0;
+    if(myverbose != 0) printf("  BSM extended axial current current A1 correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*vectorcurrentdensity{EQL}yes {
+    vectorcurrentdensity_BSM = 1;
+    if(myverbose != 0) printf("  BSM extended vector current times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*vectorcurrentdensity{EQL}no {
+    vectorcurrentdensity_BSM = 0;
+    if(myverbose != 0) printf("  BSM extended vector current times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*axialcurrentdensity{EQL}yes {
+    axialcurrentdensity_BSM = 1;
+    if(myverbose != 0) printf("  BSM extended axial current times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*axialcurrentdensity{EQL}no {
+    axialcurrentdensity_BSM = 0;
+    if(myverbose != 0) printf("  BSM extended axial current times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*pdensityvectordensity{EQL}yes {
+    pdensityvectordensity_BSM = 1;
+    if(myverbose != 0) printf("  BSM psuedo density(0) (without scalar)  * psdensity(x) (with scalar) %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*pdensityvectordensity{EQL}no {
+    pdensityvectordensity_BSM = 0;
+    if(myverbose != 0) printf("  BSM psuedo density(0) (without scalar)  * psdensity(x) (with scalar) are not computed %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*vectordensitydensity{EQL}yes {
+    vectordensitydensity_BSM = 1;
+    if(myverbose != 0) printf("  BSM extended vector density times density correlators are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*vectordensitydensity{EQL}no {
+    vectordensitydensity_BSM = 0;
+    if(myverbose != 0) printf("  BSM extended vector density times density correlators are not computed (this is the default) line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*giancarlocontraction{EQL}yes {
+    giancarlo_BSM = 1;
+    if(myverbose != 0) printf("  Contractions proposed by Giancarlo are computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*giancarlocontraction{EQL}no {
+    giancarlo_BSM = 0;
+    if(myverbose != 0) printf("  Contractions proposed by Giancarlo are not computed line %d operator %d\n", line_of_file, current_operator);
+  }
+  {SPC}*timesmearcorrelator{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    timesmearcorrelator_BSM = a;
+    if(myverbose) printf("  timesmearcorrelator is  set to %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*nscalarstep{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    optr->nscalarstep = a;
+    if(myverbose) printf("  nscalarstep set to %d line %d operator %d\n", a, line_of_file, current_operator);
   }
   {SPC}*npergauge{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
@@ -733,8 +1286,7 @@ inline void rmQuotes(char *str){
   }
 }
 
-
-<WILSONOP,TMOP>{
+<WILSONOP,TMOP,CLOVEROP>{
   {SPC}*UseEvenOdd{EQL}yes {
     if(myverbose) printf("  Use even/odd preconditioning line %d operator %d\n", line_of_file, current_operator);
     optr->even_odd_flag = 1;
@@ -786,6 +1338,57 @@ inline void rmQuotes(char *str){
   }
 }
 
+<WILSONOP,TMOP,DBTMOP,CLOVEROP,DBCLOVEROP>{  
+  {SPC}*UseExternalInverter{EQL}quda {
+    if(myverbose) printf("  Use Quda inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->external_inverter = QUDA_INVERTER;
+  }
+  {SPC}*UseExternalInverter{EQL}qphix {
+    if(myverbose) printf("  Use QPhiX inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->external_inverter = QPHIX_INVERTER;
+  }
+  {SPC}*UseExternalInverter{EQL}no {
+    if(myverbose) printf("  Do not use external inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->external_inverter = NO_EXT_INV;
+  }
+  {SPC}*UseSloppyPrecision{EQL}yes {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}float {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}single {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}no {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_DOUBLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}double {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_DOUBLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}half {
+    if(myverbose) printf("  Use use sloppy precision (half) in the inverter (if supported by the inverter) line %d operator %d\n", line_of_file, current_operator);
+    optr->sloppy_precision = SLOPPY_HALF;
+  }
+  {SPC}*UseCompression{EQL}12 {
+    if(myverbose) printf("  Use 12 compression in the inverter (if supported) line %d operator %d\n", line_of_file, current_operator);
+    optr->compression_type = COMPRESSION_12;
+  }
+  {SPC}*UseCompression{EQL}8 {
+    if(myverbose) printf("  Use 8 compression in the inverter (if supported) line %d operator %d\n", line_of_file, current_operator);
+    optr->compression_type = COMPRESSION_8;
+  }
+  {SPC}*UseCompression{EQL}18 {
+    if(myverbose) printf("  Not using compression in the inverter line %d operator %d\n", line_of_file, current_operator);
+    optr->compression_type = NO_COMPRESSION;
+  }
+}
+
 <OVERLAPOP>{
   {SPC}*Solver{EQL} { 
    BEGIN(OVSOLVER); 
@@ -827,108 +1430,430 @@ inline void rmQuotes(char *str){
 
 <DBTMSOLVER,TMSOLVER,CSWSOLVER,BSMSOLVER>{
   cg {
-    optr->solver=1;
+    optr->solver=CG;
     if(myverbose) printf("  Solver set to CG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  bicgstab {
+    optr->solver=BICGSTAB;
+    if(myverbose) printf("  Solver set to BiCGstab line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  mixedbicgstab {
+    optr->solver=MIXEDBICGSTAB;
+    if(myverbose) printf("  Solver set to MixedBiCGstab line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  mixedcg {
+    optr->solver=MIXEDCG;
+    if(myverbose) printf("  Solver set to MixedCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  rgmixedcg {
+    optr->solver=RGMIXEDCG;
+    if(myverbose) printf("  Solver set to RGMixedCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  DDalphaAMG {
+#ifdef DDalphaAMG
+    optr->solver = MG;
+    if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+#else
+    printf("ERROR line %d operator %d: DDalphaAMG library not included\n", line_of_file, current_operator);
+    exit(1);
+#endif
+  }
+  dummyhermtest {
+    optr->solver=DUMMYHERMTEST;
+    if(myverbose) printf("  Solver set to DummyHermTest line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
 }
 
 <TMSOLVER>{
   mixedcg {
-    optr->solver=13;
+    optr->solver=MIXEDCG;
     if(myverbose) printf("  Solver set to MixedCG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   bicgstab {
-    optr->solver=0;
+    optr->solver=BICGSTAB;
     if(myverbose) printf("  Solver set to BiCGstab line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
+  mixedbicgstab {
+    optr->solver=MIXEDBICGSTAB;
+    if(myverbose) printf("  Solver set to MixedBiCGstab line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  bicg {
+    optr->solver=BICG;
+    if(myverbose) printf("  Solver set to BiCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
   pcg {
-    optr->solver=9;
+    optr->solver=PCG;
     if(myverbose) printf("  Solver set to PCG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   gmres {
-    optr->solver=2;
+    optr->solver=GMRES;
     if(myverbose) printf("  Solver set to GMRES line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   gcr {
-    optr->solver=7;
+    optr->solver=GCR;
     if(myverbose) printf("  Solver set to GCR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
+  mcr {
+    optr->solver=MCR;
+    if(myverbose) printf("  Solver set to mCR line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  cr {
+    optr->solver=CR;
+    if(myverbose) printf("  Solver set to CR line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
   gmresdr {
-    optr->solver=8;
+    optr->solver=GMRESDR;
     if(myverbose) printf("  Solver set to GMRES-DR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   cgs {
-    optr->solver=3;
+    optr->solver=CGS;
     if(myverbose) printf("  Solver set to CGS line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   mr {
-    optr->solver=4;
+    optr->solver=MR;
     if(myverbose) printf("  Solver set to MR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   fgmres {
-    optr->solver=6;
+    optr->solver=FGMRES;
     if(myverbose) printf("  Solver set to FGMRES line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   dflgcr {
-    optr->solver=10;
+    optr->solver=DFLGCR;
     g_dflgcr_flag = 1;
     if(myverbose) printf("  Solver set to DFL-GCR line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   dflfgmres {
-    optr->solver=11;
+    optr->solver=DFLFGMRES;
     g_dflgcr_flag = 1;
     if(myverbose) printf("  Solver set to DFL-FGMRES line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   cgmms {
-    optr->solver = 12;
+    optr->solver = CGMMS;
     if(myverbose) printf("  Solver set to CGMMS line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
   increigcg {
-    optr->solver = 15;
+    optr->solver = INCREIGCG;
     if(myverbose) printf("  Solver set to INCR-EIG-CG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
-
+  DDalphaAMG {
+#ifdef DDalphaAMG
+    optr->solver = MG;
+    if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+#else
+    printf("ERROR line %d operator %d: DDalphaAMG library not included\n", line_of_file, current_operator);
+    exit(1);
+#endif
+  }
 }
 
+<TMSOLVER,CSWSOLVER>{
+  mg {
+    optr->solver=MG;
+    if(myverbose) printf("  Solver set to MG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+}
 
 <CSWSOLVER>{
+  bicgstab {
+    optr->solver = BICGSTAB;
+    if(myverbose) printf("  Solver set to BiCGstab line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  mixedbicgstab {
+    optr->solver=MIXEDBICGSTAB;
+    if(myverbose) printf("  Solver set to MixedBiCGstab line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
   increigcg {
-    optr->solver = 15;
+    optr->solver = INCREIGCG;
     if(myverbose) printf("  Solver set to INCR-EIG-CG line %d operator %d\n", line_of_file, current_operator);
     BEGIN(name_caller);
   }
-
+  dflgcr {
+    optr->solver=DFLGCR;
+    g_dflgcr_flag = 1;
+    if(myverbose) printf("  Solver set to DFL-GCR line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  dflfgmres {
+    optr->solver=DFLFGMRES;
+    g_dflgcr_flag = 1;
+    if(myverbose) printf("  Solver set to DFL-FGMRES line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  mixedcg {
+    optr->solver=MIXEDCG;
+    if(myverbose) printf("  Solver set to MixedCG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+  }
+  DDalphaAMG {
+#ifdef DDalphaAMG
+    optr->solver = MG;
+    if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);
+    BEGIN(name_caller);
+#else
+    printf("ERROR line %d operator %d: DDalphaAMG library not included\n", line_of_file, current_operator);
+    exit(1);
+#endif
+  }
 }
-
-
-
-
-
 
 <OVSOLVER>{
   sumr {
-    optr->solver = 13;
-    if(myverbose) printf("  Solver set to SUMR line %d operator %d\n", line_of_file, current_operator);
+    optr->solver = SUMR;
+    if(myverbose) printf("  Solver set to SUMR in line %d operator %d\n", line_of_file, current_operator);
     BEGIN(OVERLAPOP);
   }
   cg {
-    optr->solver = 1;
-    if(myverbose) printf("  Solver set to SUMR line %d operator %d\n", line_of_file, current_operator);
+    optr->solver = CG;
+    if(myverbose) printf("  Solver set to CG in line %d operator %d\n", line_of_file, current_operator);
     BEGIN(OVERLAPOP);
+  }
+}
+
+<INITEXTERNALINVERTER>{TYPE} {
+  if(strcmp(yytext, "QPHIX")==0) {
+#ifdef TM_USE_QPHIX
+    if(myverbose) printf("Setting QPHIX external inverter parameters line %d\n", line_of_file);
+    BEGIN(QPHIXINVERTER);
+#else
+    printf("tmLQCD built withtout QPHIX support. Exiting!\n");
+    exit(1);
+#endif
+  } else if ( strcmp(yytext, "QUDA")==0) {
+#ifdef TM_USE_QUDA
+    if(myverbose) printf("Setting QUDA external inverter parameters line %d\n", line_of_file);
+    BEGIN(QUDAINVERTER);
+#else
+    printf("tmLQCD built withtout QUDA support. Exiting!\n");
+    exit(1);
+#endif
+  } else {
+    printf("Error on line %d, inverter '%s' is unknown. Exiting!\n", line_of_file, yytext);
+    exit(1);
+  }
+}
+<QUDAINVERTER>{
+  {SPC}*FermionBC{EQL}theta {
+    quda_input.fermionbc = TM_QUDA_THETABC;
+    if(myverbose) printf("  Force theta fermionic temporal boundary conditions for QUDA inversions, line %d\n", line_of_file);
+  }
+  {SPC}*FermionBC{EQL}apbc {
+    quda_input.fermionbc = TM_QUDA_APBC;
+    if(myverbose) printf("  Force anti-periodic temporal fermionic boundary conditions for QUDA inversions, line %d\n", line_of_file);
+  }
+  {SPC}*FermionBC{EQL}pbc {
+    quda_input.fermionbc = TM_QUDA_PBC;
+    if(myverbose) printf("  Force periodic temporal fermionic boundary conditions for QUDA inversions, line %d\n", line_of_file);
+  }
+  {SPC}*MGNumberOfLevels{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    quda_input.mg_n_level=a;
+    if(myverbose) printf("  MGNumberOfLevels set to %d line %d\n", quda_input.mg_n_level, line_of_file);
+  }
+  {SPC}*MGNumberOfVectors{EQL}{FLTLIST} {
+    char paramname[100];
+    char error_message[200];
+    int list_end = 0;
+    int level = 0;
+
+    fltlist_tokenize(yytext, paramname, 100);
+    int n_vec = (int)fltlist_next_token(&list_end);
+    while( list_end != 1 ){
+      if( level >= (QUDA_MAX_MG_LEVEL-1) ){
+        snprintf(error_message, 200, "Exceeded maximum number of levels (%d-1) parsing %s!\n", QUDA_MAX_MG_LEVEL, paramname);
+        yy_fatal_error(error_message);
+      }
+      
+      quda_input.mg_n_vec[level] = n_vec;
+      if(myverbose){ 
+        printf("  %s, level %d set to %d line %d\n", paramname,
+                level, quda_input.mg_n_vec[level], line_of_file);
+      }
+      level++;
+      n_vec = fltlist_next_token(&list_end);
+    }
+  }
+  {SPC}*MGBlockSizesX{EQL}{FLTLIST} {
+    // note the dimensions here are in QUDA order (XYZT!)
+    parse_quda_mg_blocksize(yytext, 0);
+  }
+  {SPC}*MGBlockSizesY{EQL}{FLTLIST} {
+    parse_quda_mg_blocksize(yytext, 1);
+  }
+  {SPC}*MGBlockSizesZ{EQL}{FLTLIST} {
+    parse_quda_mg_blocksize(yytext, 2);
+  }
+  {SPC}*MGBlockSizesT{EQL}{FLTLIST} {
+    parse_quda_mg_blocksize(yytext, 3);
+  }
+  {SPC}*MGCoarseMuFactor{EQL}{FLTLIST} {
+    char paramname[100];
+    char error_message[200];
+    int list_end = 0;
+    int level = 0;
+
+    fltlist_tokenize(yytext, paramname, 100);
+    double mu_factor = fltlist_next_token(&list_end);
+    while( list_end != 1 ){
+      if( level > QUDA_MAX_MG_LEVEL ){
+        snprintf(error_message, 200, "Exceeded maximum number of levels (%d) parsing %s!\n", QUDA_MAX_MG_LEVEL, paramname);
+        yy_fatal_error(error_message);
+      }
+      
+      quda_input.mg_mu_factor[level] = mu_factor;
+      if(myverbose){ 
+        printf("  %s, level %d set to %lf line %d\n", paramname,
+                level, quda_input.mg_mu_factor[level], line_of_file);
+      }
+      level++;
+      mu_factor = fltlist_next_token(&list_end);
+    }
+  }
+  {SPC}*MGSetupSolver{EQL}cg {
+    quda_input.mg_setup_inv_type = QUDA_CG_INVERTER;
+    if(myverbose) printf("  MGSetupSolver set to CG line %d\n", line_of_file);
+  }
+  {SPC}*MGSetupSolver{EQL}bicgstab {
+    quda_input.mg_setup_inv_type = QUDA_BICGSTAB_INVERTER;
+    if(myverbose) printf("  MGSetupSolver set to BiCGstab line %d\n", line_of_file);
+  }
+  {SPC}*MGSetupSolverTolerance{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    quda_input.mg_setup_tol=c;
+    if(myverbose) printf("  MGSetupSolverTolerance set to %f line %d\n", quda_input.mg_setup_tol, line_of_file);
+  }
+  {SPC}*MGSetupMaxSolverIterations{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    quda_input.mg_setup_maxiter=a;
+    if(myverbose) printf("  MGSetupMaxSolverIterations set to %d line %d\n", quda_input.mg_setup_maxiter, line_of_file);
+  }
+  {SPC}*MGCoarseSolverTolerance{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    quda_input.mg_coarse_solver_tol=c;
+    if(myverbose) printf("  MGCoarseSolverTolerance set to %f line %d\n", quda_input.mg_coarse_solver_tol, line_of_file);
+  }
+  {SPC}*MGCoarseMaxSolverIterations{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    quda_input.mg_coarse_solver_maxiter=a;
+    if(myverbose) printf("  MGCoarseMaxSolverIterations set to %d line %d\n", quda_input.mg_coarse_solver_maxiter, line_of_file);
+  }
+  {SPC}*MGSmootherTolerance{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    quda_input.mg_smoother_tol=c;
+    if(myverbose) printf("  MGSmootherTolerance set to %f line %d\n", quda_input.mg_smoother_tol, line_of_file);
+  }
+  {SPC}*MGSmootherPreIterations{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    quda_input.mg_nu_pre=a;
+    if(myverbose) printf("  MGSmootherPreIterations set to %d line %d\n", quda_input.mg_nu_pre, line_of_file);
+  }
+  {SPC}*MGSmootherPostIterations{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    quda_input.mg_nu_post=a;
+    if(myverbose) printf("  MGSmootherPostIterations set to %d line %d\n", quda_input.mg_nu_post, line_of_file);
+  }
+  {SPC}*MGOverUnderRelaxationFactor{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    quda_input.mg_omega=c;
+    if(myverbose) printf("  MGOverUnderRelaxationFactor set to %f line %d\n", quda_input.mg_omega, line_of_file);
+  }
+  {SPC}*MGRunVerify{EQL}yes {
+    quda_input.mg_run_verify = QUDA_BOOLEAN_YES;
+    if(myverbose) printf("  MGRunVerify set to YES in line %d\n", line_of_file);
+  }
+  {SPC}*MGRunVerify{EQL}no {
+    quda_input.mg_run_verify = QUDA_BOOLEAN_NO;
+    if(myverbose) printf("  MGRunVerify set to NO in line %d\n", line_of_file);
+  }
+  {SPC}*MGEnableSizeThreeBlocks{EQL}yes {
+    quda_input.mg_enable_size_three_blocks = 1;
+    if(myverbose) printf("  MGEnableSizeThreeBlocks set to YES in line %d\n", line_of_file);
+  }
+  {SPC}*MGEnableSizeThreeBlocks{EQL}no {
+    quda_input.mg_enable_size_three_blocks = 0;
+    if(myverbose) printf("  MGEnableSizeThreeBlocks set to NO in line %d\n", line_of_file);
+  }
+  {SPC}*MGResetSetupThreshold{EQL}{FLT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
+    quda_input.mg_reset_setup_threshold=c;
+    if(myverbose) printf("  MGResetSetupThreshold set to %f line %d\n", quda_input.mg_reset_setup_threshold, line_of_file);
+  }
+  ^EndExternalInverter{SPC}*  { 
+    if(myverbose) printf("QUDA external inverter parameters parsed on line %d\n\n", line_of_file);
+    BEGIN(0);
+  }
+}
+<QPHIXINVERTER>{
+  {SPC}*NCores{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.NCores = a;
+    if(myverbose) printf("  Ncores = %d, line %d\n", qphix_input.NCores, line_of_file );
+  }
+  {SPC}*By{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.By = a;
+    if(myverbose) printf("  By = %d, line %d\n", qphix_input.By, line_of_file );
+  }
+  {SPC}*Bz{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.Bz = a;
+    if(myverbose) printf("  Bz = %d, line %d\n", qphix_input.Bz, line_of_file );
+  }
+  {SPC}*Sy{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.Sy = a;
+    if(myverbose) printf("  Sy = %d, line %d\n", qphix_input.Sy, line_of_file );
+  }
+  {SPC}*Sz{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.Sz = a;
+    if(myverbose) printf("  Sz = %d, line %d\n", qphix_input.Sz, line_of_file );
+  }
+  {SPC}*PadXY{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.PadXY = a;
+    if(myverbose) printf("  PadXY = %d, line %d\n", qphix_input.PadXY, line_of_file );
+  }
+  {SPC}*PadXYZ{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.PadXYZ = a;
+    if(myverbose) printf("  PadXYZ = %d, line %d\n", qphix_input.PadXYZ, line_of_file );
+  }
+  {SPC}*MinCt{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    qphix_input.MinCt = a;
+    if(myverbose) printf("  MinCt = %d, line %d\n", qphix_input.MinCt, line_of_file );
+  }
+  ^EndExternalInverter{SPC}*  {
+    if(myverbose) printf("QPHIX external inverter parameters parsed on line %d\n\n", line_of_file);
+    BEGIN(0);
   }
 }
 
@@ -948,6 +1873,10 @@ inline void rmQuotes(char *str){
     mnl->type = CLOVERDETRATIO;
     strcpy((*mnl).name, "CLOVERDETRATIO");
   }
+  else if(strcmp(yytext, "CLOVERDETRATIORW")==0) {
+    mnl->type = CLOVERDETRATIORW;
+    strcpy((*mnl).name, "CLOVERDETRATIORW");
+  }
   else if(strcmp(yytext, "DETRATIO")==0) {
     mnl->type = DETRATIO;
     strcpy((*mnl).name, "DETRATIO");
@@ -955,6 +1884,11 @@ inline void rmQuotes(char *str){
   else if(strcmp(yytext, "NDDETRATIO")==0) {
     mnl->type = NDDETRATIO;
     strcpy((*mnl).name, "NDDETRATIO");
+    g_running_phmc = 1;
+  }
+  else if(strcmp(yytext, "NDCLOVERDETRATIO")==0) {
+    mnl->type = NDCLOVERDETRATIO;
+    strcpy((*mnl).name, "NDDCLOVERETRATIO");
     g_running_phmc = 1;
   }
   else if(strcmp(yytext, "NDPOLY")==0) {
@@ -1039,10 +1973,13 @@ inline void rmQuotes(char *str){
   else if(mnl->type == NDRAT) BEGIN(NDRATMONOMIAL);
   else if(mnl->type == RAT) BEGIN(RATMONOMIAL);
   else if(mnl->type == NDCLOVERRAT) BEGIN(NDCLRATMONOMIAL);
+  else if(mnl->type == NDDETRATIO) BEGIN(NDDETRATMONOMIAL);
   else if(mnl->type == CLOVERRAT) BEGIN(CLRATMONOMIAL);
   else if(mnl->type == NDRATCOR) BEGIN(NDRATCORMONOMIAL);
   else if(mnl->type == RATCOR) BEGIN(RATCORMONOMIAL);
   else if(mnl->type == NDCLOVERRATCOR) BEGIN(NDCLRATCORMONOMIAL);
+  else if(mnl->type == NDDETRATIO) BEGIN(NDDETRATMONOMIAL);
+  else if(mnl->type == NDCLOVERDETRATIO) BEGIN(NDCLDETRATMONOMIAL);
   else if(mnl->type == CLOVERRATCOR) BEGIN(CLRATCORMONOMIAL);
   else if(mnl->type == POLY || mnl->type == POLYDETRATIO)  {
           fprintf(stderr,"starting to parse poly(detratio) monomial\n");
@@ -1050,14 +1987,15 @@ inline void rmQuotes(char *str){
   }
   else if(mnl->type == CLOVERDET) BEGIN(CLDETMONOMIAL);
   else if(mnl->type == CLOVERDETRATIO) BEGIN(CLDETRATMONOMIAL);
+  else if(mnl->type == CLOVERDETRATIORW) BEGIN(CLDETRATRWMONOMIAL);
   else BEGIN(DETMONOMIAL);
 }
 
 
 
-<DETMONOMIAL,GAUGEMONOMIAL,NDPOLYMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,RATMONOMIAL,CLRATMONOMIAL,RATCORMONOMIAL,CLRATCORMONOMIAL>{
+<DETMONOMIAL,GAUGEMONOMIAL,NDPOLYMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,CLPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,RATMONOMIAL,CLRATMONOMIAL,RATCORMONOMIAL,CLRATCORMONOMIAL,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
   {SPC}*Timescale{EQL}{DIGIT}+ {
-    if(mnl->type == NDDETRATIO) {
+    if(mnl->type == NDDETRATIO || mnl->type == NDCLOVERDETRATIO) {
       mnl->timescale = -5;
       if(myverbose) printf("  timescales set to %d line %d monomial %d since NDDETRATIO is not for MD evolution\n", a, line_of_file, current_monomial);
     }
@@ -1077,7 +2015,7 @@ inline void rmQuotes(char *str){
   }
 }
 
-<CLDETMONOMIAL,CLDETRATMONOMIAL,CLPOLYMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL>{
+<CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,CLPOLYMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,NDCLDETRATMONOMIAL>{
   {SPC}*CSW{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     mnl->c_sw = c;
@@ -1085,7 +2023,7 @@ inline void rmQuotes(char *str){
   }
 }
 
-<CLDETMONOMIAL,CLDETRATMONOMIAL>{
+<CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL>{
   {SPC}*rho{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     mnl->rho = c;
@@ -1093,7 +2031,7 @@ inline void rmQuotes(char *str){
   }
 }
 
-<CLDETRATMONOMIAL>{
+<CLDETRATMONOMIAL,CLDETRATRWMONOMIAL>{
   {SPC}*rho2{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z]2 = %lf", name, &c);
     mnl->rho2 = c;
@@ -1101,7 +2039,7 @@ inline void rmQuotes(char *str){
   }
 }
 
-<DETMONOMIAL,POLYMONOMIAL,NDPOLYMONOMIAL,CLPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,RATMONOMIAL,CLRATMONOMIAL,RATCORMONOMIAL,CLRATCORMONOMIAL>{
+<DETMONOMIAL,POLYMONOMIAL,NDPOLYMONOMIAL,CLPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,RATMONOMIAL,CLRATMONOMIAL,RATCORMONOMIAL,CLRATCORMONOMIAL,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
   {SPC}*Kappa{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf", name, &c);
     mnl->kappa = c;
@@ -1109,12 +2047,20 @@ inline void rmQuotes(char *str){
   }
 }
 
-<DETMONOMIAL,POLYMONOMIAL>{
+<DETMONOMIAL,POLYMONOMIAL,CLDETRATRWMONOMIAL>{
   {SPC}*2KappaMu2{EQL}{FLT} {
     sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
     mnl->mu2 = c;
     if(myverbose) printf("  2KappaMu2 set to %f line %d monomial %d\n", c, line_of_file, current_monomial);
   }
+  {SPC}*Kappa2{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mnl->kappa2 = c;
+    if(myverbose) printf("  kappa2 set to %f line %d monomial %d\n", c, line_of_file, current_monomial);
+  }
+}
+
+<NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
   {SPC}*Kappa2{EQL}{FLT} {
     sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
     mnl->kappa2 = c;
@@ -1133,7 +2079,7 @@ inline void rmQuotes(char *str){
   }
 }
 
-<NDPOLYMONOMIAL,CLPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL>{
+<NDPOLYMONOMIAL,CLPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
   {SPC}*2KappaMubar{EQL}{FLT} {
     sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
     mnl->mubar = c;
@@ -1146,7 +2092,70 @@ inline void rmQuotes(char *str){
   }
 }
 
-<DETMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL>{
+<NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
+  {SPC}*2KappaMubar2{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mnl->mubar2 = c;
+    if(myverbose) printf("  2KappaMubar2 set to %f line %d monomial %d\n", c, line_of_file, current_monomial);
+  }
+  {SPC}*2KappaEpsbar2{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    mnl->epsbar2 = c;
+    if(myverbose) printf("  2KappaEpsbar2 set to %f line %d monomial %d\n", c, line_of_file, current_monomial);
+  }
+}
+<DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
+  {SPC}*UseExternalInverter{EQL}quda {
+    if(myverbose) printf("  Use Quda inverter line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.external_inverter = QUDA_INVERTER;
+  }
+  {SPC}*UseExternalInverter{EQL}qphix {
+    if(myverbose) printf("  Use QPhiX inverter line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.external_inverter = QPHIX_INVERTER;
+  }
+  {SPC}*UseExternalInverter{EQL}no {
+    if(myverbose) printf("  Use QPhiX inverter line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.external_inverter = NO_EXT_INV;
+  }
+  {SPC}*UseSloppyPrecision{EQL}yes {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}float {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}single {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter (if supported by the inverter) line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.sloppy_precision = SLOPPY_SINGLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}no {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.sloppy_precision = SLOPPY_DOUBLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}double {
+    if(myverbose) printf("  Use use sloppy precision (single) in the inverter line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.sloppy_precision = SLOPPY_DOUBLE;
+  }
+  {SPC}*UseSloppyPrecision{EQL}half {
+    if(myverbose) printf("  Use use sloppy precision (half) in the inverter (if supported by the inverter) line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.sloppy_precision = SLOPPY_HALF;
+  }
+  {SPC}*UseCompression{EQL}12 {
+    if(myverbose) printf("  Use 12 compression in the inverter (if supported) line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.compression_type = COMPRESSION_12;
+  }
+  {SPC}*UseCompression{EQL}8 {
+    if(myverbose) printf("  Use 8 compression in the inverter (if supported) line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.compression_type = COMPRESSION_8;
+  }
+  {SPC}*UseCompression{EQL}18 {
+    if(myverbose) printf("  Not using compression in the inverter line %d monomial %d\n", line_of_file, current_monomial);
+    mnl->solver_params.compression_type = NO_COMPRESSION;
+  }
+}
+
+<DETMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
   {SPC}*ForcePrecision{EQL}{FLT} {
     sscanf(yytext, " %[a-zA-Z] = %lf",name , &c);
     mnl->forceprec = c;
@@ -1162,9 +2171,28 @@ inline void rmQuotes(char *str){
     mnl->maxiter = a;
     if(myverbose) printf("  MaxSolverIterations set to %d line %d monomial %d\n", a, line_of_file, current_monomial);
   }
+  {SPC}*mcgdelta{EQL}{FLT} {
+    sscanf(yytext, " %[a-zA-Z1] = %lf", name, &c);
+    (mnl->solver_params).mcg_delta = c;
+    if(myverbose) printf("  mcg_delta set to %lf line %d monomial %d\n", c, line_of_file, current_monomial);
+  }
 }
 
-<DETMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL>{
+<NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL>{
+  {SPC}*Solver{EQL} {
+   solver_caller=YY_START;
+   BEGIN(NDMSOLVER);
+  }
+}
+
+<RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL>{
+  {SPC}*Solver{EQL} {
+   solver_caller=YY_START;
+   BEGIN(RATMSOLVER);
+  }
+}
+
+<DETMONOMIAL,POLYMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL>{
   {SPC}*2KappaMu{EQL}{FLT} {
     sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
     mnl->mu = c;
@@ -1362,13 +2390,94 @@ inline void rmQuotes(char *str){
 <MSOLVER>{
   CG {
     if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
-    mnl->solver = 1;
+    mnl->solver = CG;
     BEGIN(solver_caller);
   }
-  bicgstab {
+  mixedCG {
     if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
-    mnl->solver = 0;
+    mnl->solver = MIXEDCG;
     BEGIN(solver_caller);
+  }
+  rgmixedCG {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = RGMIXEDCG;
+    BEGIN(solver_caller);
+  }
+  BICGSTAB {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = BICGSTAB;
+    BEGIN(solver_caller);
+  }
+  mixedbicgstab {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver=MIXEDBICGSTAB;
+    BEGIN(name_caller);
+  }
+  DDalphaAMG {
+#ifdef DDalphaAMG
+    if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);
+    mnl->solver = MG;
+    BEGIN(solver_caller);
+#else
+    printf("ERROR line %d operator %d: DDalphaAMG library not included\n", line_of_file, current_operator);
+    exit(1);
+#endif
+  }
+}
+
+<RATMSOLVER>{
+  rgmixedCG {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = RGMIXEDCG;
+    BEGIN(solver_caller);
+  }
+  cgmms {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = CGMMS;
+    BEGIN(solver_caller);
+  }
+  DDalphaAMG {
+#ifdef DDalphaAMG
+    if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);
+    mnl->solver = MG;
+    BEGIN(solver_caller);
+#else
+    printf("ERROR line %d operator %d: DDalphaAMG library not included\n", line_of_file, current_operator);
+    exit(1);
+#endif
+  }
+}
+
+<NDMSOLVER>{
+  cgmmsnd {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = CGMMSND;
+    BEGIN(solver_caller);
+  }
+  rgmixedcg {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = RGMIXEDCG;
+    BEGIN(solver_caller);
+  }
+  mixedCGmmsnd {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = MIXEDCGMMSND;
+    BEGIN(solver_caller);
+  }
+  MCR {
+    if(myverbose) printf("  Solver set to \"%s\" line %d monomial %d\n", yytext, line_of_file, current_monomial);
+    mnl->solver = 14;
+    BEGIN(solver_caller);
+  }
+  DDalphaAMG {
+#ifdef DDalphaAMG
+    if(myverbose) printf("  Solver set to DDalphaAMG line %d operator %d\n", line_of_file, current_operator);
+    mnl->solver = MG;
+    BEGIN(solver_caller);
+#else
+    printf("ERROR line %d operator %d: DDalphaAMG library not included\n", line_of_file, current_operator);
+    exit(1);
+#endif
   }
 }
 
@@ -1438,6 +2547,9 @@ inline void rmQuotes(char *str){
     else if(strcmp(type, "OMF4")==0) {
       Integrator.type[a] = OMF4;
     }
+    else if(strcmp(type, "2MNFG")==0) {
+      Integrator.type[a] = MN2FG;
+    }
     else {
       fprintf(stderr, "Unknown integrator type %s in line %d\n", yytext, line_of_file);
       exit(1);
@@ -1496,16 +2608,24 @@ inline void rmQuotes(char *str){
 
 <SOURCETYPE>{
   Point {
-    SourceInfo.type = 0;
+    SourceInfo.type = SRC_TYPE_POINT;
     if(myverbose) printf("Using Point Sources\n");
   }
   Volume {
-    SourceInfo.type = 1;
+    SourceInfo.type = SRC_TYPE_VOL;
     if(myverbose) printf("Using Volume Sources\n");
   }
   TimeSlice {
-    SourceInfo.type = 2;
+    SourceInfo.type = SRC_TYPE_TS;
     if(myverbose) printf("Using TimeSlice Sources\n");
+  }
+  PionTimeSlice {
+    SourceInfo.type = SRC_TYPE_PION_TS;
+    if(myverbose) printf("Using PionTimeSlice Sources\n");
+  }
+  GenPionTimeSlice {
+    SourceInfo.type = SRC_TYPE_GEN_PION_TS;
+    if(myverbose) printf("Using GenPionTimeSlice Sources\n");
   }
 }
 <PROPSPLIT>{
@@ -1547,13 +2667,24 @@ inline void rmQuotes(char *str){
     meas->type = ORIENTED_PLAQUETTES;
     strcpy(meas->name, "ORIENTEDPLAQUETTES");
   }
+  else if(strcmp(yytext, "GRADIENTFLOW")==0) {
+    meas->type = GRADIENT_FLOW;
+    strcpy(meas->name, "GRADIENTFLOW");
+  }
   else {
     fprintf(stderr, "Unknown measurement type %s in line %d\n", yytext, line_of_file);
     exit(1);
   }
-  /*set default frequency here, in case it is not specified
-    in the input file */  
+  // set default measurement parameters. This has to be done here, since init_measurements would
+  // override the inputs
   meas->freq = _default_measurement_freq;
+
+  meas->no_samples = 1;
+  meas->all_time_slices = 0;
+
+  meas->gf_eps = _default_gf_eps;
+  meas->gf_tmax = _default_gf_tmax;
+
   if(!reread) {
     if(add_measurement(meas->type) < 0) {
       fprintf(stderr, "Something went wrong in adding measurements\nAborting...!\n");
@@ -1567,9 +2698,10 @@ inline void rmQuotes(char *str){
   else if(meas->type == PIONNORM) BEGIN(PIONNORMMEAS);
   else if(meas->type == POLYAKOV) BEGIN(PLOOP);
   else if(meas->type == ORIENTED_PLAQUETTES) BEGIN(ORIENTEDPLAQUETTESMEAS);
+  else if(meas->type == GRADIENT_FLOW) BEGIN(GRADIENTFLOWMEAS);
 }
 
-<ONLINEMEAS,PIONNORMMEAS,PLOOP,ORIENTEDPLAQUETTESMEAS>{
+<ONLINEMEAS,PIONNORMMEAS,PLOOP,ORIENTEDPLAQUETTESMEAS,GRADIENTFLOWMEAS>{
   ^EndMeasurement{SPC}* {
     if(myverbose) printf("Measurement with id %d parsed in line %d\n\n", meas->id, line_of_file);
     BEGIN(0);
@@ -1587,7 +2719,33 @@ inline void rmQuotes(char *str){
     meas->max_iter = a;
     if(myverbose) printf("  MaxSolverIterations set to %d line %d measurement id=%d\n", a, line_of_file, meas->id);
   }
+  {SPC}*AllTimeSlices{EQL}yes {
+    meas->all_time_slices = 1;
+    if(myverbose) printf("  Inversions for correlators will be done on all time-slices, line %d, measurement id=%d\n", line_of_file, meas->id);
+  }
+  {SPC}*AllTimeSlices{EQL}no {
+    meas->all_time_slices = 0;
+    if(myverbose) printf("  Inversions for correlators will NOT be done on all time-slices, line %d, measurement id=%d\n", line_of_file, meas->id);
+  }
+  {SPC}*NoSamples{EQL}{DIGIT}+ {
+    sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
+    meas->no_samples = a;
+    if(myverbose) printf("  Number of samples for correlators measurement set to %d, line %d measurement id=%d\n", a, line_of_file, meas->id);
+  }
 }
+
+<GRADIENTFLOWMEAS>{
+  {SPC}*StepSize{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    meas->gf_eps = c;
+    if(myverbose) printf("  Gradient flow step size set to %lf line %d, measurement id=%d\n", meas->gf_eps, line_of_file, meas->id);
+  }
+  {SPC}*MaxFlowTime{EQL}{FLT} {
+    sscanf(yytext, " %[2a-zA-Z] = %lf", name, &c);
+    meas->gf_tmax = c;
+    if(myverbose) printf("  Maximum gradient flow time size set to %lf line %d, measurement id=%d\n", meas->gf_tmax, line_of_file, meas->id);
+  }
+} 
 
 <PLOOP>{
   {SPC}*Direction{EQL}[03] {
@@ -1707,7 +2865,7 @@ inline void rmQuotes(char *str){
 }
 <CSW>{FLT}  {
   g_c_sw=atof(yytext);
-  if(myverbose!=0) printf("c_sw=%lf \n", g_c_sw);
+  if(myverbose!=0) printf("c_sw=%s \n", yytext);
 }
 <STARTCOND>{
   cold {
@@ -1747,10 +2905,6 @@ inline void rmQuotes(char *str){
   gmresdr_nr_ev = atoi(yytext);
   if(myverbose!=0) printf("Deflate %d eigenvectors in GMRES-DR \n", gmresdr_nr_ev);
 }
-<DFLSP>{DIGIT}+ {
-  g_N_s = atoi(yytext);
-  if(myverbose!=0) printf("Deflation subspace dimension set to %d \n", g_N_s);
-}
 <PRECON>{
   none {
     if(myverbose!=0) printf("Using no right preconditioner \n");
@@ -1770,6 +2924,22 @@ inline void rmQuotes(char *str){
   write_cp_flag=0;
   if(myverbose!=0) printf("Don't write Checkpoints\n");
 }
+<SUBPROCESS>yes     {
+  subprocess_flag=1;
+  if(myverbose!=0) printf("Running in \'subprocess\' mode\n");
+}
+<SUBPROCESS>no     {
+  subprocess_flag=0;
+  if(myverbose!=0) printf("Not running in \'subprocess\' mode\n");
+}
+<LOWMEM>yes     {
+  lowmem_flag=1;
+  if(g_proc_id==0) printf("!!! WARNING: running in \'lowmem\' mode, most functionality will NOT work without explicit memory allocations!\n");
+}
+<LOWMEM>no     {
+  lowmem_flag=0;
+  if(myverbose!=0) printf("Not running in \'lowmem\' mode\n");
+}
 <DSBLIOCHECK>yes {
   g_disable_IO_checks = 1;
   if(myverbose!=0) printf("Disable IO checks (and readback in case of Lemon IO)\n");
@@ -1777,6 +2947,14 @@ inline void rmQuotes(char *str){
 <DSBLIOCHECK>no {
   g_disable_IO_checks = 0;
   if(myverbose!=0) printf("Enable IO checks (and readback in case of Lemon IO)\n");
+}
+<DSBLSRCIOCHECK>yes {
+  g_disable_src_IO_checks = 1;
+  if(myverbose!=0) printf("Disable IO checks for sources\n");
+}
+<DSBLSRCIOCHECK>no {
+  g_disable_src_IO_checks = 0;
+  if(myverbose!=0) printf("Enable IO checks for sources\n");
 }
 <CPINT>{DIGIT}+   {
   cp_interval=atoi(yytext);
@@ -1869,13 +3047,16 @@ inline void rmQuotes(char *str){
   if(myverbose!=0) printf("Don't read inversion source from file, but save the one generated\n");
 }
 <SOURCEFILE>{FILENAME} {
-  if(SourceInfo.basename == NULL) free(SourceInfo.basename);
+  if(SourceInfo.basename != NULL) free(SourceInfo.basename);
   SourceInfo.basename = (char*)malloc((strlen(yytext)+1)*sizeof(char));
   strcpy(SourceInfo.basename, yytext);
-  if(PropInfo.basename == NULL) free(PropInfo.basename);
+  if(myverbose!=0) printf("source input filename set to %s of length %lu\n",yytext,strlen(yytext));
+}
+<PROPFILE>{FILENAME} {
+  if(PropInfo.basename != NULL) free(PropInfo.basename);
   PropInfo.basename = (char*)malloc((strlen(yytext)+1)*sizeof(char));
   strcpy(PropInfo.basename, yytext);
-  if(myverbose!=0) printf("source input filename set to %s\n",yytext);
+  if(myverbose!=0) printf("propagator output filename set to %s\n",yytext);
 }
 <SOURCEFORMAT>etmc      {
   SourceInfo.format = 0;
@@ -2092,15 +3273,25 @@ inline void rmQuotes(char *str){
 }
 <REWEIGH>yes {
   reweighting_flag = 1;
-  if(myverbose!=0) fprintf(stderr, "Compute reweighting factor\n");
+  if(myverbose!=0) printf("Compute reweighting factor\n");
 }
 <REWEIGH>no {
   reweighting_flag = 0;
-  if(myverbose!=0) fprintf(stderr, "Do not compute reweighting factor\n");
+  if(myverbose!=0) printf("Do not compute reweighting factor\n");
 }
 <REWSAMPLES>{DIGIT}+ {
   reweighting_samples = atoi(yytext);
-  if(myverbose!=0) fprintf(stderr, "Number of reweighting samples set to %d\n", reweighting_samples);
+  if(myverbose!=0) printf("Number of reweighting samples set to %d\n", reweighting_samples);
+}
+
+<MIXCGIT>{DIGIT}+ {
+  mixcg_maxinnersolverit = atoi(yytext);
+  if(myverbose) printf("MixedCG: setting maximal inner solver iterations to %d\n", mixcg_maxinnersolverit);
+}
+
+<MIXCGEPS>{FLT}  {
+  mixcg_innereps=atof(yytext);
+  if(myverbose!=0) printf("MixedCG: setting inner solver eps to %s \n", yytext);
 }
 
 <*>^#   {
@@ -2115,8 +3306,7 @@ inline void rmQuotes(char *str){
   BEGIN(comment_caller);
 }
 
-
-<INITMONOMIAL,DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,NDPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLPOLYMONOMIAL,GAUGEMONOMIAL,INTEGRATOR,INITINTEGRATOR,INITMEASUREMENT,PIONNORMMEAS,ONLINEMEAS,ORIENTEDPLAQUETTESMEAS,INITOPERATOR,TMOP,DBTMOP,OVERLAPOP,WILSONOP,CLOVEROP,DBCLOVEROP,POLYMONOMIAL,PLOOP,INITGPU,GPU,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,BSMOP>{SPC}*\n   {
+<INITMONOMIAL,DETMONOMIAL,CLDETMONOMIAL,CLDETRATMONOMIAL,CLDETRATRWMONOMIAL,NDPOLYMONOMIAL,NDRATMONOMIAL,NDRATCORMONOMIAL,NDCLRATMONOMIAL,NDCLRATCORMONOMIAL,CLPOLYMONOMIAL,GAUGEMONOMIAL,INTEGRATOR,INITINTEGRATOR,INITMEASUREMENT,PIONNORMMEAS,ONLINEMEAS,ORIENTEDPLAQUETTESMEAS,GRADIENTFLOWMEAS,INITOPERATOR,TMOP,DBTMOP,OVERLAPOP,WILSONOP,CLOVEROP,DBCLOVEROP,POLYMONOMIAL,PLOOP,INITGPU,GPU,RATMONOMIAL,RATCORMONOMIAL,CLRATMONOMIAL,CLRATCORMONOMIAL,INITDEFLATION,DEFLATION,INITMULTIGRID,MULTIGRID,INITEXTERNALINVERTER,QUDAINVERTER,QPHIXINVERTER,NDDETRATMONOMIAL,NDCLDETRATMONOMIAL,BSMOP>{SPC}*\n   {
   line_of_file++;
 }
 <*>{SPC}*\n                       {
@@ -2128,8 +3318,8 @@ inline void rmQuotes(char *str){
   BEGIN(ERROR);
 }
 <ERROR>[^\t\n]*             {
-  fprintf(stderr, "Parsing error in line %d\nAborting...!\n", line_of_file);
-  fprintf(stderr, "Could not make sense out off: %s\n", yytext);
+  if(g_proc_id == 0) fprintf(stderr, "Parsing error in line %d\nAborting...!\n", line_of_file);
+  if(g_proc_id == 0) fprintf(stderr, "Could not make sense out off: %s\n", yytext);
   exit(1);
 }
 
@@ -2194,11 +3384,34 @@ int read_input(char * conf_file){
   g_mu1 = _default_g_mu1;
   g_mu2 = _default_g_mu2;
   g_mu3 = _default_g_mu3;
+  g_shift = _default_g_shift;
   g_dbw2rand = 0;
   g_running_phmc = 0;
   g_beta = _default_g_beta;
   g_N_s = _default_g_N_s;
   g_dflgcr_flag = _default_g_dflgcr_flag;
+
+  Msap_precon = _default_Msap_precon;
+  NiterMsap = _default_NiterMsap;
+  NcycleMsap = _default_NcycleMsap;
+  kappa_Msap = _default_kappa_Msap;
+  mu_Msap = _default_mu_Msap;
+
+  NsmoothMsap_dflgen = _default_NsmoothMsap_dflgen;
+  NiterMsap_dflgen = _default_NiterMsap_dflgen;
+  NcycleMsap_dflgen = _default_NcycleMsap_dflgen;
+  usePL = _default_usePL;
+  mu_dflgen = _default_mu_dflgen;
+  kappa_dflgen = _default_kappa_dflgen;
+  mu_dfl = _default_mu_dfl;
+  kappa_dfl = _default_kappa_dfl;
+  little_solver_low_prec = _default_little_solver_low_prec;
+  little_solver_high_prec = _default_little_solver_high_prec;
+  little_solver_max_iter = _default_little_solver_max_iter;
+  little_evenodd = _default_little_evenodd;
+  little_solver = _default_little_solver;
+  little_gmres_m_parameter = _default_little_gmres_m_parameter;
+
   random_seed = _default_random_seed;
   rlxd_level = _default_rlxd_level;
   startoption = _default_startoption;
@@ -2222,11 +3435,34 @@ int read_input(char * conf_file){
   rho_BSM = _default_rho_BSM;
   eta_BSM = _default_eta_BSM;
   m0_BSM  = _default_m0_BSM;
+  mu03_BSM  = _default_mu03_BSM;
+  mu01_BSM  = _default_mu01_BSM;
+  r_BSM = _default_r_BSM ;
+  c5phi_BSM  = _default_c5phi_BSM ;
+  csw_BSM = _default_csw_BSM ;
+  propagatorsonthefly_BSM = _default_propagatorsonthefly_BSM;
+  smearedcorrelator_BSM = _default_smearedcorrelator_BSM;
+  densitydensity_BSM = _default_densitydensity_BSM;
+  densitydensity_s0s0_BSM = _default_densitydensity_s0s0_BSM;
+  densitydensity_sxsx_BSM = _default_densitydensity_sxsx_BSM;
+  diraccurrentdensity_BSM = _default_diraccurrentdensity_BSM;
+  wilsoncurrentdensitypr1_BSM = _default_wilsoncurrentdensitypr1_BSM;
+  wilsoncurrentdensitypr2_BSM = _default_wilsoncurrentdensitypr2_BSM;
+  wilsoncurrentdensitypl1_BSM = _default_wilsoncurrentdensitypl1_BSM;
+  wilsoncurrentdensitypl2_BSM = _default_wilsoncurrentdensitypl2_BSM;
+  vectorcurrentcurrent_BSM = _default_vectorcurrentcurrent_BSM;
+  axialcurrentcurrent_BSM = _default_axialcurrentcurrent_BSM;
+  vectorcurrentdensity_BSM = _default_vectorcurrentdensity_BSM;
+  axialcurrentdensity_BSM = _default_axialcurrentdensity_BSM;
+  vectordensitydensity_BSM = _default_vectordensitydensity_BSM;
+  giancarlo_BSM = _default_giancarlo_BSM;
+  timesmearcorrelator_BSM = _default_timesmearcorrelator_BSM;
+  pdensityvectordensity_BSM = _default_pdensityvectordensity_BSM;
   g_rgi_C1 = _default_g_rgi_C1;
   read_source_flag= _default_read_source_flag;
-  if(SourceInfo.basename == NULL) SourceInfo.basename = (char*)malloc(100*sizeof(char));
+  SourceInfo.basename = (char*)malloc(strlen(_default_source_filename)+10);
   strcpy(SourceInfo.basename, _default_source_filename);
-  if(PropInfo.basename == NULL) PropInfo.basename = (char*)malloc(100*sizeof(char));
+  PropInfo.basename = (char*)malloc(strlen(_default_source_filename)+10);
   strcpy(PropInfo.basename, _default_source_filename);
   PropInfo.splitted = _default_propagator_splitted;
   SourceInfo.splitted = _default_source_splitted;
@@ -2243,6 +3479,7 @@ int read_input(char * conf_file){
   scalar_precision_read_flag = _default_scalar_precision_read_flag;
   scalar_precision_write_flag = _default_scalar_precision_write_flag;
   g_disable_IO_checks = _default_g_disable_IO_checks;
+  g_disable_src_IO_checks = _default_g_disable_IO_checks;
   reproduce_randomnumber_flag = _default_reproduce_randomnumber_flag;
   g_sloppy_precision_flag = _default_g_sloppy_precision_flag;
   use_stout_flag = _default_use_stout_flag;
@@ -2271,6 +3508,49 @@ int read_input(char * conf_file){
   mstarsq = _default_mstarsq;
   no_sources_z2 = _default_no_sources_z2;
   device_num = _default_device_num;
+  min_innersolver_it = _default_min_innersolver_it;
+  max_mms_shifts = _default_max_mms_shifts;
+  use_mixed_mms = 0;
+  innersolver_precision_rel = 1.e-4;
+  innersolver_precision_abs = 1.e-4;
+
+  mixcg_innereps = _default_mixcg_innereps;
+  mixcg_maxinnersolverit = _default_mixcg_maxinnersolverit;
+
+  lowmem_flag = _default_lowmem_flag;
+  subprocess_flag = _default_subprocess_flag;
+ 
+  /* default parameters for QUDA */
+  quda_input.fermionbc = TM_QUDA_THETABC;
+  quda_input.mg_n_level = _default_quda_mg_n_level;
+  for( int level = 0; level < QUDA_MAX_MG_LEVEL; ++level){
+    quda_input.mg_n_vec[level] = _default_quda_mg_n_vec;
+    if( level > 0 ){
+      quda_input.mg_mu_factor[level] = _default_quda_mg_mu_factor;
+    } else {
+      quda_input.mg_mu_factor[level] = 1.0;
+    }
+
+    /* note: when the user does not specify any blocking parameters,
+     * a reasonable set will be computed automatically in the MG setup
+     * of the QUDA interface */
+    for( int dim = 0; dim < 4; ++dim ){
+      quda_input.mg_blocksize[level][dim] = 0;
+    }
+  }
+  quda_input.mg_setup_inv_type = QUDA_CG_INVERTER;
+  quda_input.mg_setup_maxiter = _default_quda_mg_setup_maxiter;
+  quda_input.mg_setup_tol = _default_quda_mg_setup_tol;
+  quda_input.mg_coarse_solver_tol = _default_quda_mg_coarse_solver_tol;
+  quda_input.mg_coarse_solver_maxiter = _default_quda_mg_coarse_solver_maxiter;
+  quda_input.mg_nu_pre = _default_quda_mg_nu_pre;
+  quda_input.mg_nu_post = _default_quda_mg_nu_post;
+  quda_input.mg_smoother_tol = _default_quda_mg_smoother_tol;
+  quda_input.mg_omega = _default_quda_mg_omega;
+  quda_input.mg_run_verify = QUDA_BOOLEAN_YES;
+  quda_input.mg_enable_size_three_blocks = _default_quda_mg_enable_size_three_blocks;
+  quda_input.mg_reset_setup_threshold = _default_quda_mg_reset_setup_threshold;
+
   /* Put -1 in PropInfo.format to see if parse_config() will
   change the value. If not then set it to source_format_flag */
   PropInfo.format = -1;

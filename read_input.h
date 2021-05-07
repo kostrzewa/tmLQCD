@@ -92,6 +92,7 @@ extern "C"
   extern int bc_flag;
   extern int online_measurement_flag;
   extern int online_measurement_freq;
+  extern int restoresu3_flag;
   extern int reweighting_flag;
   extern int reweighting_samples; 
   extern int no_samples;
@@ -103,17 +104,44 @@ extern "C"
   extern int max_innersolver_it;
   extern double innersolver_precision;
   extern int device_num;
+
+  extern int max_mms_shifts;
+  extern int use_mixed_mms; 
   
   extern double innersolver_precision_abs;
   extern double innersolver_precision_rel;
   extern int innersolver_precision_check_abs;
   extern int innersolver_precision_check_rel;
+  extern int min_innersolver_it;  
 
+  extern double mixcg_innereps;
+  extern int mixcg_maxinnersolverit;
+  
   extern int omp_num_threads;
 
   extern int use_preconditioning;
 
+  extern int subprocess_flag;
+  extern int lowmem_flag; 
+
   extern int nblocks_t, nblocks_x, nblocks_y, nblocks_z;
+  extern double kappa_dflgen, mu_dflgen, kappa_dfl, mu_dfl, kappa_Msap, mu_Msap;
+
+  extern int mg_setup_iter;
+  extern int mg_coarse_setup_iter;
+  extern int mg_Nvec;
+  extern int mg_lvl;
+  extern int mg_blk[4];
+  extern int mg_mixed_prec;
+  extern int mg_setup_mu_set;
+  extern int mg_no_shifts;
+  extern double mg_mms_mass;
+  extern double mg_setup_mu;
+  extern double mg_cmu_factor;
+  extern double mg_dtau_update;
+  extern double mg_rho_update;
+  extern int mg_update_setup_iter;
+  extern int mg_omp_num_threads;
 
   extern int have_bsm_op;
 

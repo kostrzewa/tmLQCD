@@ -18,8 +18,10 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
+
+#ifdef TM_USE_BSM
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -87,3 +89,4 @@ void free_bsm_2hop_lookup() {
   if((void*)g_bsm_2hop_lookup != NULL)
     free(g_bsm_2hop_lookup);
 }
+#endif

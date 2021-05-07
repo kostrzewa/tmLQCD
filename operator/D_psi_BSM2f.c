@@ -26,11 +26,11 @@
  * with a scalar field coupling.
  *
  *******************************************************************************/
-
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 
+#ifdef TM_USE_BSM
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -39,7 +39,7 @@
 #include "su3spinor.h"
 #include "sse.h"
 #include "boundary.h"
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include "xchange/xchange.h"
 #endif
 #include "update_backward_gauge.h"
@@ -47,7 +47,9 @@
 #include "operator/D_psi_BSM2f.h"
 #include "solver/dirac_operator_eigenvectors.h"
 #include "buffers/utils.h"
+#if defined TM_USE_MPI
 #include "buffers/utils_nonblocking.h"
+#endif
 #include "linalg_eo.h"
 #include "fatal_error.h"
 
@@ -78,6 +80,9 @@ static bispinor *v2m1;
 static bispinor *v2m2;
 static bispinor *v2m3;
 static bispinor *v2m4;
+
+static bispinor *tempor;
+
 void init_D_psi_BSM2f(){
 
      vm1 =(bispinor *)calloc(VOLUMEPLUSRAND,sizeof(bispinor));
@@ -93,6 +98,7 @@ void init_D_psi_BSM2f(){
      v2m3=(bispinor *)calloc(VOLUMEPLUSRAND,sizeof(bispinor));
      v2m4=(bispinor *)calloc(VOLUMEPLUSRAND,sizeof(bispinor));
 
+     tempor=(bispinor *)calloc(VOLUMEPLUSRAND,sizeof(bispinor));
 }
 void free_D_psi_BSM2f(){
      free(vm1);
@@ -107,7 +113,57 @@ void free_D_psi_BSM2f(){
      free(v2m2);
      free(v2m3);
      free(v2m4);
+
+     free(tempor);
 }
+
+static inline void tm3_add(bispinor * const out, const bispinor * const in, const double sign)
+{  
+  /*out+=s*i\gamma_5 \tau_3 mu3 *in
+   * sign>0 for D+i\gamma_5\tau_3
+   * sign<0 for D_dag-i\gamma_5\tau_3
+   */
+  double s = +1.;
+  if(sign < 0) s = -1.;
+  
+  // out_up += s * i \gamma_5 \mu3 * in_up
+  _vector_add_i_mul(out->sp_up.s0,  s*mu03_BSM, in->sp_up.s0);
+  _vector_add_i_mul(out->sp_up.s1,  s*mu03_BSM, in->sp_up.s1);
+  _vector_add_i_mul(out->sp_up.s2, -s*mu03_BSM, in->sp_up.s2);
+  _vector_add_i_mul(out->sp_up.s3, -s*mu03_BSM, in->sp_up.s3);
+  
+  
+  // out_dn +=- s * i \gamma_5 \mu3 * in_dn
+  _vector_add_i_mul(out->sp_dn.s0, -s*mu03_BSM, in->sp_dn.s0);
+  _vector_add_i_mul(out->sp_dn.s1, -s*mu03_BSM, in->sp_dn.s1);
+  _vector_add_i_mul(out->sp_dn.s2,  s*mu03_BSM, in->sp_dn.s2);
+  _vector_add_i_mul(out->sp_dn.s3,  s*mu03_BSM, in->sp_dn.s3);
+  
+}
+static inline void tm1_add(bispinor * const out, const bispinor * const in, const double sign)
+{  
+  /*out+=s*i\gamma_5 \tau_1 mu1 *in
+   * sign>0 for D+i\gamma_5\tau_1
+   * sign<0 for D_dag-i\gamma_5\tau_1
+   */
+  double s = +1.;
+  if(sign < 0) s = -1.;
+  
+  // out_up += s * i \gamma_5 \mu1 * in_dn
+  _vector_add_i_mul(out->sp_up.s0,  s*mu01_BSM, in->sp_dn.s0);
+  _vector_add_i_mul(out->sp_up.s1,  s*mu01_BSM, in->sp_dn.s1);
+  _vector_add_i_mul(out->sp_up.s2, -s*mu01_BSM, in->sp_dn.s2);
+  _vector_add_i_mul(out->sp_up.s3, -s*mu01_BSM, in->sp_dn.s3);
+  
+  
+  // out_dn += s * i \gamma_5 \mu1 * in_up
+  _vector_add_i_mul(out->sp_dn.s0,  s*mu01_BSM, in->sp_up.s0);
+  _vector_add_i_mul(out->sp_dn.s1,  s*mu01_BSM, in->sp_up.s1);
+  _vector_add_i_mul(out->sp_dn.s2, -s*mu01_BSM, in->sp_up.s2);
+  _vector_add_i_mul(out->sp_dn.s3, -s*mu01_BSM, in->sp_up.s3);
+  
+}
+
 static inline void Fadd(bispinor * const out, const bispinor * const in, const scalar * const phi, const double c, const double sign) {
   static spinor tmp;
   double s = +1.;
@@ -348,7 +404,7 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
   scalar phim[4][4];                   // phi_i(x-mu) = phim[mu][i]
   bispinor ALIGN stmp2;
 
-
+#if defined TM_USE_MPI
   MPI_Status  statuses[8];
   MPI_Request *request;
   request=( MPI_Request *) malloc(sizeof(MPI_Request)*8);
@@ -359,7 +415,7 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
   generic_exchange_direction_nonblocking(Q, sizeof(bispinor), XUP, request, &count);
   generic_exchange_direction_nonblocking(Q, sizeof(bispinor), YUP, request, &count);
   generic_exchange_direction_nonblocking(Q, sizeof(bispinor), ZUP, request, &count);
-
+#endif
 //  computing backward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -393,7 +449,7 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
     upm = &g_gauge_field[ix][ZUP];
     padd(rr4, s, upm, HOP_DN, 0.5*phase_3);
   }
-  
+ #if defined TM_USE_MPI 
   MPI_Waitall( count, request, statuses);
 
 //gathering backward
@@ -403,7 +459,7 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
   generic_exchange_direction_nonblocking(vm3, sizeof(bispinor), XDOWN, request, &count);
   generic_exchange_direction_nonblocking(vm2, sizeof(bispinor), YDOWN, request, &count);
   generic_exchange_direction_nonblocking(vm1, sizeof(bispinor), ZDOWN, request, &count);
-
+#endif
 //computing forward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -440,9 +496,9 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
     padd(rr3, spm,  upm, HOP_UP, 0.5*phase_3);
 
   }
-
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
-
+#endif
 // join
   for (ix=0; ix<VOLUME; ++ix){
 
@@ -486,12 +542,13 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
 
 
 //start gathering forward
+#if defined TM_USE_MPI
   count=0;
   generic_exchange_direction_nonblocking(vp1, sizeof(bispinor), TUP, request, &count);
   generic_exchange_direction_nonblocking(vp2, sizeof(bispinor), XUP, request, &count);
   generic_exchange_direction_nonblocking(vp3, sizeof(bispinor), YUP, request, &count);
   generic_exchange_direction_nonblocking(vp4, sizeof(bispinor), ZUP, request, &count);
-
+#endif
 
 //start computing backward
   for (ix=0;ix<VOLUME;ix++)
@@ -546,6 +603,7 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
     Fadd( rrs3, &stmp2, phi, -0.125*rho_BSM, +1. );
 
   }
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
 
 //gathering backward
@@ -554,7 +612,7 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
   generic_exchange_direction_nonblocking(v2m2, sizeof(bispinor), XDOWN, request, &count);
   generic_exchange_direction_nonblocking(v2m3, sizeof(bispinor), YDOWN, request, &count);
   generic_exchange_direction_nonblocking(v2m4, sizeof(bispinor), ZDOWN, request, &count);
-
+#endif
 //computing forward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -599,8 +657,9 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
     Fadd( rr, &stmp2, phip[ZUP], -0.125*rho_BSM, +1. );
   }
 
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
-
+#endif
 //join
 
  for (ix=0; ix<VOLUME; ++ix){
@@ -645,9 +704,18 @@ void D_psi_BSM2f(bispinor * const P, bispinor * const Q){
       Fadd(rr, s, phim[mu], 0.125*rho_BSM, +1. );
    }
 
+   // tmpr+=i\gamma_5\tau_1 mu0 *Q 
+    if( fabs(mu01_BSM) > 1.e-10 )
+        tm1_add(rr, s, 1);
+    
+   // tmpr+=i\gamma_5\tau_3 mu0 *Q 
+    if( fabs(mu03_BSM) > 1.e-10 )
+        tm3_add(rr, s, 1);
 
   } // end volume loop
+#if defined TM_USE_MPI
   free(request);
+#endif
 
 }
 
@@ -687,6 +755,7 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
   scalar phim[4][4];                   // phi_i(x-mu) = phim[mu][i]
   bispinor ALIGN stmp2;
 
+#if defined TM_USE_MPI
   MPI_Status  statuses[8];
   MPI_Request *request;
   request=( MPI_Request *) malloc(sizeof(MPI_Request)*8);
@@ -698,6 +767,7 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
   generic_exchange_direction_nonblocking(Q, sizeof(bispinor), YUP, request, &count);
   generic_exchange_direction_nonblocking(Q, sizeof(bispinor), ZUP, request, &count);
 
+#endif
 //  computing backward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -731,7 +801,7 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
     upm = &g_gauge_field[ix][ZUP];
     padd(rr4, s, upm, HOP_DN, 0.5*phase_3);
   }
-
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
 
 //gathering backward
@@ -741,7 +811,7 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
   generic_exchange_direction_nonblocking(vm3, sizeof(bispinor), XDOWN, request, &count);
   generic_exchange_direction_nonblocking(vm2, sizeof(bispinor), YDOWN, request, &count);
   generic_exchange_direction_nonblocking(vm1, sizeof(bispinor), ZDOWN, request, &count);
-
+#endif
 //computing forward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -778,9 +848,9 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
     padd(rr3, spm,  upm, HOP_UP, 0.5*phase_3);
 
   }
-
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
-
+#endif
 // join
   for (ix=0; ix<VOLUME; ++ix){
 
@@ -828,12 +898,13 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
 
 
 //start gathering forward
+#if defined TM_USE_MPI
   count=0;
   generic_exchange_direction_nonblocking(vp1, sizeof(bispinor), TUP, request, &count);
   generic_exchange_direction_nonblocking(vp2, sizeof(bispinor), XUP, request, &count);
   generic_exchange_direction_nonblocking(vp3, sizeof(bispinor), YUP, request, &count);
   generic_exchange_direction_nonblocking(vp4, sizeof(bispinor), ZUP, request, &count);
-
+#endif
 //start computing backward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -887,6 +958,7 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
     Fadd( rrs3, &stmp2, phi, -0.125*rho_BSM, -1. );
 
   }
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
 
 //gathering backward
@@ -896,7 +968,7 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
   generic_exchange_direction_nonblocking(v2m2, sizeof(bispinor), XDOWN, request, &count);
   generic_exchange_direction_nonblocking(v2m3, sizeof(bispinor), YDOWN, request, &count);
   generic_exchange_direction_nonblocking(v2m4, sizeof(bispinor), ZDOWN, request, &count);
-
+#endif
 //computing forward
   for (ix=0;ix<VOLUME;ix++)
   {
@@ -941,8 +1013,9 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
     Fadd( rr, &stmp2, phip[ZUP], -0.125*rho_BSM, -1. );
   }
 
+#if defined TM_USE_MPI
   MPI_Waitall( count, request, statuses);
-
+#endif
 
 //join
 
@@ -988,16 +1061,27 @@ void D_psi_dagger_BSM2f(bispinor * const P, bispinor * const Q){
        Fadd(rr, s, phim[mu], 0.125*rho_BSM, -1. );
     }
 
+   // tmpr+=i\gamma_5\tau_1 mu0 *Q 
+    if( fabs(mu01_BSM) > 1.e-10 )
+        tm1_add(rr, s, -1);
+    
+   // tmpr+=i\gamma_5\tau_3 mu0 *Q 
+    if( fabs(mu03_BSM) > 1.e-10 )
+        tm3_add(rr, s, -1);
 
   } // end volume loop
+//  for (ix=0; ix<VOLUME; ++ix){  
+//  }
+#if defined TM_USE_MPI
   free(request);
+#endif
 }
 /* Q2_psi_BSM2f acts on bispinor fields */
 void Q2_psi_BSM2f(bispinor * const P, bispinor * const Q){
 
   /* TODO: the use of [3] has to be changed to avoid future conflicts */
-  D_psi_dagger_BSM2f(g_bispinor_field[3] , Q);
-  D_psi_BSM2f(P, g_bispinor_field[3]);
+  D_psi_dagger_BSM2f(tempor , Q);
+  D_psi_BSM2f(P, tempor);
   // only use these cycles if the m0_BSM parameter is really nonzero...
   if( fabs(m0_BSM) > 1.e-10 ){
     /* Q and P are spinor, not bispinor ==> made a cast */
@@ -1005,3 +1089,4 @@ void Q2_psi_BSM2f(bispinor * const P, bispinor * const Q){
   }
 
 }
+#endif

@@ -1,0 +1,84 @@
+
+srcdir = @srcdir@
+top_builddir =  @top_builddir@
+abs_top_builddir = @abs_top_builddir@
+top_srcdir = @top_srcdir@
+abs_top_srcdir = @abs_top_srcdir@
+subdir = contractions
+builddir = @builddir@
+
+CFLAGS = @CFLAGS@
+DEPFLAGS = @DEPFLAGS@
+LDFLAGS = @LDFLAGS@
+DEFS = @DEFS@
+OPTARGS = @OPTARGS@
+SOPTARGS = @SOPTARGS@
+
+AR = @AR@
+RANLIB = @RANLIB@
+CC = @CC@
+CCDEP = @CCDEP@
+CCLD = ${CC}
+LINK = ${CCLD} ${CFLAGS} ${LDFLAGS} ${OPTARGS} -o $@
+LEX = @LEX@
+AUTOCONF = @AUTOCONF@
+DEFS = @DEFS@
+
+INCLUDES = @INCLUDES@
+LDADD =
+#COMPILE = ${CC} ${DEFS} ${INCLUDES} ${CFLAGS}
+COMPILE = ${CC} $(DEFS) ${INCLUDES} ${CFLAGS}
+
+LIBRARIES = libcontractions
+libcontractions_TARGETS = contractions_helper contractions_FP contractions_checks contractions_currentdensityextended 
+
+libcontractions_OBJECTS = $(addsuffix .o, ${libcontractions_TARGETS})
+
+# default rule
+
+all: Makefile dep libcontractions.a
+
+# rules for debugging
+debug all-debug: CFLAGS := $(CFLAGS) @DEBUG_FLAG@
+debug all-debug: all
+
+# rules for profiling information
+profile all-profile: CFLAGS := $(filter-out -fomit-frame-pointer,${CFLAGS}) @PROFILE_FLAG@
+profile all-profile: all
+
+#include dep rules
+-include $(addsuffix .d,${liboperator_TARGETS})
+
+include ${top_srcdir}/Makefile.global
+
+# rule to compile objects
+${libcontractions_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
+	$(COMPILE) ${OPTARGS} -c $<
+
+# rule to make liboperator
+libcontractions.a: ${libcontractions_OBJECTS} Makefile
+	@rm -f libcontractions.a
+	@${AR} cru libcontractions.a ${libcontractions_OBJECTS} 
+	@$(RANLIB) libcontractions.a
+	@cp libcontractions.a ../lib/libcontractions.a
+
+# rule to generate .d files
+$(addsuffix .d, ${libcontractions_TARGETS}) : %.d: ${srcdir}/%.c Makefile
+	@${CCDEP} ${DEFS} ${DEPFLAGS} ${INCLUDES} $< > $@
+
+# rule to make dependencies
+dep: ${addsuffix .d, ${libcontractions_TARGETS}}
+
+# rules to clean
+
+compile-clean: Makefile
+	rm -f ${$(addsuffix _OBJECTS, ${LIBRARIES})} ${$(addsuffix _SOBJECTS, ${LIBRARIES})} *.d
+
+clean: compile-clean 
+	rm -f $(addsuffix .a, ${LIBRARIES})
+	rm -f ../lib/liboperator.a
+
+distclean: clean
+	rm -f Makefile
+
+.PHONY: all dep clean compile-clean distclean profile all-profile debug all-debug

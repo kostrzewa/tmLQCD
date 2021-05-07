@@ -19,7 +19,7 @@
  ***********************************************************************/
 #include "utils.ih"
 
-#ifndef MPI /*Let's deal with this case once and for all*/
+#ifndef TM_USE_MPI /*Let's deal with this case once and for all*/
 void generic_exchange(void *field_in, int bytes_per_site)
 {}
 #else /* MPI */
@@ -161,22 +161,23 @@ void generic_exchange(void *field_in, int bytes_per_site)
 #endif /* _NON_BLOCKING */
 }
 
+
 #endif /* MPI */
 
-
-void copy_gauge_field(gauge_field_t dest, gauge_field_t orig)
+inline void copy_gauge_field(gauge_field_t dest, gauge_field_t orig)
 {
   memmove((void*)dest.field, (void*)orig.field, sizeof(su3_tuple) * VOLUMEPLUSRAND + 1);
 }
 
-void exchange_gauge_field(gauge_field_t target)
+
+inline void exchange_gauge_field(gauge_field_t target)
 {
   generic_exchange((void*)target.field, sizeof(su3_tuple));
 }
 
-void exchange_gauge_field_array(gauge_field_array_t target)
+
+inline void exchange_gauge_field_array(gauge_field_array_t target)
 {
   for (unsigned int idx = 0; idx < target.length; ++idx)
     exchange_gauge_field(target.field_array[idx]);
 }
-

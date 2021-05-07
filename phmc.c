@@ -18,7 +18,7 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
@@ -98,7 +98,7 @@ void init_phmc() {
       printf("PHMC: Ev-max = %e \n", phmc_cheb_evmax);
       printf("PHMC: Ev-min = %e \n", phmc_cheb_evmin); 
     }
-#ifdef MPI
+#ifdef TM_USE_MPI
     MPI_Finalize();
 #endif
     exit(0);
@@ -152,7 +152,7 @@ void init_phmc() {
       fclose(Const);
     } else {
       fprintf(stderr, "File %s is missing! Aborting...\n", filename_const);
-#ifdef MPI
+#ifdef TM_USE_MPI
       MPI_Finalize();
 #endif
       exit(6);
@@ -177,7 +177,7 @@ void init_phmc() {
     if (fgets(title, 100, roots) == NULL)
     {
       fprintf(stderr, "Error in reading %s! Aborting...\n", filename_phmc_root);
-      #ifdef MPI
+      #ifdef TM_USE_MPI
          MPI_Finalize();
       #endif
       exit(6);
@@ -191,7 +191,7 @@ void init_phmc() {
   }
   else {
     fprintf(stderr, "File %s is missing! Aborting...\n", filename_phmc_root);
-#ifdef MPI
+#ifdef TM_USE_MPI
     MPI_Finalize();
 #endif
     exit(6);
@@ -235,7 +235,7 @@ void phmc_compute_ev(const int trajectory_counter,
 	   mnl->name, trajectory_counter, temp2);
   }
   if(g_proc_id == 0) {
-    if(temp2 > 1.) {
+    if(temp2 > mnl->EVMax) {
       fprintf(stderr, "\nWarning: largest eigenvalue for monomial %s larger than upper bound!\n\n", mnl->name);
     }
     if(temp < mnl->EVMin) {
@@ -243,7 +243,7 @@ void phmc_compute_ev(const int trajectory_counter,
     }
     countfile = fopen(phmcfilename, "a");
     fprintf(countfile, "%.8d %1.5e %1.5e %1.5e %1.5e\n", 
-	    trajectory_counter, temp, temp2, mnl->EVMin, 1.);
+	    trajectory_counter, temp, temp2, mnl->EVMin, mnl->EVMax);
     fclose(countfile);
   }
   etime = gettime();

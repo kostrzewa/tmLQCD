@@ -31,10 +31,11 @@ COMPILE = ${CC} $(DEFS) ${INCLUDES} ${CFLAGS}
 
 LIBRARIES = liboperator
 liboperator_TARGETS = clover_accumulate_deriv clover_deriv clovertm_operators clover_leaf \
-  tm_operators_nd clover_term clover_invert clover_det
+  tm_operators_nd tm_operators_nd_32 clover_term clover_invert clover_det \
+	clovertm_operators_32
 
-liboperator_STARGETS = Hopping_Matrix_nocom tm_times_Hopping_Matrix Hopping_Matrix \
-	tm_operators tm_sub_Hopping_Matrix D_psi D_psi_BSM D_psi_BSM2m D_psi_BSM2b D_psi_BSM2f M_psi Dov_psi Dov_proj
+liboperator_STARGETS = Hopping_Matrix_nocom tm_times_Hopping_Matrix Hopping_Matrix Hopping_Matrix_32 Hopping_Matrix_32_nocom \
+	tm_operators tm_operators_32 tm_sub_Hopping_Matrix D_psi D_psi_BSM D_psi_BSM2m D_psi_BSM2b D_psi_BSM2f D_psi_BSM3 D_psi_BSM3_test M_psi Dov_psi Dov_proj
 
 liboperator_OBJECTS = $(addsuffix .o, ${liboperator_TARGETS})
 liboperator_SOBJECTS = $(addsuffix .o, ${liboperator_STARGETS})
@@ -57,10 +58,10 @@ profile all-profile: all
 include ${top_srcdir}/Makefile.global
 
 # rule to compile objects
-${liboperator_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${liboperator_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${OPTARGS} -c $<
 
-${liboperator_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${liboperator_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${SOPTARGS} -c $<
 
 # rule to make liboperator

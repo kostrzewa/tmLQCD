@@ -25,13 +25,13 @@
  **********************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 #endif
 
@@ -53,7 +53,7 @@ void xchange_jacobi(su3_vector * const l) {
 #pragma pomp inst begin(xchange_jacobi)
 #endif
 
-#  ifdef MPI
+#  ifdef TM_USE_MPI
 
   MPI_Status status;
 #    if (defined PARALLELX || defined PARALLELXY || defined PARALLELXYZ )

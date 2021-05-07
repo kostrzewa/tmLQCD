@@ -30,12 +30,10 @@ LDADD =
 COMPILE = ${CC} $(DEFS) ${INCLUDES} ${CFLAGS}
 
 LIBRARIES = libinit
-libinit_TARGETS = init_moment_field init_gauge_tmp init_gauge_field \
+libinit_TARGETS = init_moment_field init_gauge_tmp init_gauge_fg init_gauge_field \
 	init_geometry_indices init_spinor_field init_dirac_halfspinor \
 	init_chi_spinor_field init_bispinor_field init_jacobi_field \
-	init_scalar_field \
-	init_omp_accumulators init_openmp \
-	init_bsm_2hop_lookup
+	init_omp_accumulators init_openmp init_parallel init_scalar_field init_bsm_2hop_lookup
 
 libinit_STARGETS = 
 
@@ -63,10 +61,10 @@ include ${top_srcdir}/Makefile.global
 
 # rule to compile objects
 
-${libinit_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${libinit_OBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${OPTARGS} -c $<
 
-${libinit_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/config.h
+${libinit_SOBJECTS}: %.o: ${srcdir}/%.c %.d Makefile ${abs_top_builddir}/include/tmlqcd_config.h
 	$(COMPILE) ${SOPTARGS} -c $<
 
 # rule to make libinit

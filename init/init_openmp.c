@@ -18,9 +18,9 @@
  ***********************************************************************/
 
 #ifdef HAVE_CONFIG_H
-# include<config.h>
+# include<tmlqcd_config.h>
 #endif
-#ifdef OMP
+#ifdef TM_USE_OMP
 #include <omp.h>
 #include "init_omp_accumulators.h"
 #endif
@@ -30,7 +30,7 @@
 #include "global.h"
 
 void init_openmp(void) {
-#ifdef OMP  
+#ifdef TM_USE_OMP  
   if(omp_num_threads > 0) 
   {
      omp_set_num_threads(omp_num_threads);

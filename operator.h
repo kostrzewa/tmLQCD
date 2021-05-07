@@ -1,4 +1,3 @@
-
 /***********************************************************************
  *
  * Copyright (C) 2009 Carsten Urbach
@@ -26,22 +25,10 @@
 #include "solver/dirac_operator_eigenvectors.h"
 #include "su3.h"
 #include "solver/solver_params.h"
-                                    
+#include "operator_types.h"
+#include "misc_types.h"
 
-typedef enum op_type {
-  TMWILSON = 0,
-  OVERLAP,
-  WILSON,
-  DBTMWILSON,
-  CLOVER,
-  DBCLOVER,
-  BSM,
-  BSM2b,
-  BSM2m,
-  BSM2f
-} op_type;
-
-#define max_no_operators 10
+#define max_no_operators 50
 
 typedef struct {
   /* ID of the operator */
@@ -52,7 +39,7 @@ typedef struct {
   int deg_poly;
   int no_ev;
   
-  int sloppy_precision;
+  SloppyPrecision sloppy_precision;
   int even_odd_flag;
   int solver;
   int N_s;
@@ -61,9 +48,12 @@ typedef struct {
   int maxiter;
   int iterations;
   int prop_precision;
+  int write_prop_flag;
   int no_flavours;
   int DownProp;
   int no_ev_index;
+  ExternalInverter external_inverter;
+  CompressionType compression_type;
 
   int error_code;
 
@@ -90,6 +80,9 @@ typedef struct {
   spinor *sr0, *sr1, *sr2, *sr3;
   /* generic place for propagators */
   spinor *prop0, *prop1, *prop2, *prop3;
+  /* generic place for all propagators for a point source */
+  bispinor **prop_zero;
+  bispinor **prop_ntmone;
 
   /*solver parameters struct*/
   solver_params_t solver_params;
@@ -98,27 +91,49 @@ typedef struct {
   double extra_masses[MAX_EXTRA_MASSES];
   int no_extra_masses;
 
+#if TM_USE_BSM
   /* for the BSM operator, support for multiple scalar fields per sample/index */
   int npergauge;
+  int nscalarstep;
   int n;
+#endif
 
 
   /* chebyshef coefficients for the overlap */
   double * coefs;
+
+ 
   /* various versions of the Dirac operator */
-  void (*applyM) (spinor * const, spinor * const);
-  void (*applyQ) (spinor * const, spinor * const);
-  /* with even/odd */
-  void (*applyQp) (spinor * const, spinor * const);
-  void (*applyQm) (spinor * const, spinor * const);
+  /* ---------------------------------------*/
+  //even-even part of the even-odd operator 
+  void (*applyMee) (spinor * const, spinor * const, double const);
+  //inverse of the even-even part of the even-odd operator 
+  void (*applyMeeInv) (spinor * const, spinor * const, double const);
+  //full operator M acting on a spinor given as even and odd parts separately
+  void (*applyM) (spinor * const, spinor * const, spinor * const, spinor * const); 
+  //full operator Q=gamma5*M on a spinor given as even and odd parts separately
+  void (*applyQ) (spinor * const, spinor * const, spinor * const, spinor * const); 
+  //either: the full operator Q^+ on lexiographic spinor 
+  //or    : eo-preconditioned Q^+ on odd part of an eo ordered spinor
+  void (*applyQp) (spinor * const, spinor * const); 
+  //either : the full operator Q^- on lexiographic spinor 
+  //or     : eo-preconditioned Q^- on odd part of an eo ordered spinor
+  void (*applyQm) (spinor * const, spinor * const); 
+  //either: the full operator Q^+*Q^- on lexiographic spinor 
+  //or    : eo-preconditioned Q^+*Q^- on odd part of an eo ordered spinor
   void (*applyQsq) (spinor * const, spinor * const);
 
   void (*applyMbi)    (bispinor * const, bispinor * const);
   void (*applyMdagbi) (bispinor * const, bispinor * const);
   void (*applyQsqbi)  (bispinor * const, bispinor * const);
   
-  void (*applyMp) (spinor * const, spinor * const);
-  void (*applyMm) (spinor * const, spinor * const);
+  //either: the full operator M^+ on lexiographic spinor 
+  //or    : eo-preconditioned M^+ on odd part of an eo ordered spinor
+  void (*applyMp) (spinor * const, spinor * const); 
+  //either: the full operator M^- on lexiographic spinor 
+  //or    : eo-preconditioned M^- on odd part of an eo ordered spinor
+  void (*applyMm) (spinor * const, spinor * const); 
+  //EO preconditoned Hermitian operator for the non-degenerate doublet (more explanantion needed here).
   void (*applyDbQsq) (spinor * const, spinor * const, spinor * const, spinor * const);
   /* the generic invert function */
   void (*inverter) (const int op_id, const int index_start, const int write_prop);
@@ -136,5 +151,8 @@ extern int no_operators;
 
 int add_operator(const int type);
 int init_operators();
+
+void op_set_globals(const int op_id);
+void op_backup_restore_globals(const backup_restore_t mode);
 
 #endif
